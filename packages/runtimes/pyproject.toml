@@ -1,0 +1,14 @@
+[project]
+name = "llmforeman-runtimes"
+version = "0.0.0"
+description = "LLMForeman local inference runtime integrations (boundary only; no clients yet)."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llmforeman_runtimes"]

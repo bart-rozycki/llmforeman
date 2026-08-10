@@ -1,0 +1,16 @@
+[package]
+name = "llmforeman-desktop"
+version = "0.0.0"
+description = "LLMForeman desktop shell (Tauri) — narrow native bridge only."
+edition = "2021"
+
+[lib]
+# The `_lib` suffix keeps the lib name distinct from the binary name.
+name = "llmforeman_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

@@ -1,0 +1,17 @@
+[project]
+name = "llmforeman-cli"
+version = "0.0.0"
+description = "LLMForeman command-line interface boundary (thin entry point; no commands yet)."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+llmforeman = "llmforeman_cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llmforeman_cli"]

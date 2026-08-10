@@ -1,0 +1,75 @@
+[project]
+name = "llmforeman"
+version = "0.0.0"
+description = "LLMForeman monorepo workspace root (aggregates the Python packages)."
+requires-python = ">=3.13"
+dependencies = [
+    "llmforeman-core",
+    "llmforeman-providers",
+    "llmforeman-runtimes",
+    "llmforeman-cli",
+]
+
+[tool.uv]
+# The repository root is a workspace aggregator, not a distributable package.
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+llmforeman-core = { workspace = true }
+llmforeman-providers = { workspace = true }
+llmforeman-runtimes = { workspace = true }
+llmforeman-cli = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "mypy>=1.11",
+    "pytest>=8.3",
+    "ruff>=0.6",
+]
+
+# --- Centralized tooling configuration (shared by all workspace packages) ---
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = [
+    "packages/core/src",
+    "packages/providers/src",
+    "packages/runtimes/src",
+    "packages/cli/src",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_configs = true
+files = [
+    "packages/core/src",
+    "packages/providers/src",
+    "packages/runtimes/src",
+    "packages/cli/src",
+    "packages/core/tests",
+    "packages/providers/tests",
+    "packages/runtimes/tests",
+    "packages/cli/tests",
+    "tests",
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+# importlib import mode keeps identically-scoped test packages isolated
+# without requiring __init__.py files in each tests/ directory.
+addopts = "-ra --import-mode=importlib"
+testpaths = [
+    "packages/core/tests",
+    "packages/providers/tests",
+    "packages/runtimes/tests",
+    "packages/cli/tests",
+    "tests/integration",
+]

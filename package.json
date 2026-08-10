@@ -1,0 +1,14 @@
+{
+  "name": "llmforeman",
+  "private": true,
+  "version": "0.0.0",
+  "description": "LLMForeman monorepo root (npm workspaces for the desktop app).",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "desktop:typecheck": "npm run -w @llmforeman/desktop typecheck",
+    "desktop:build": "npm run -w @llmforeman/desktop build",
+    "desktop:tauri": "npm run -w @llmforeman/desktop tauri"
+  }
+}
