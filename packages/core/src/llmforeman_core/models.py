@@ -9,10 +9,11 @@ persistence logic lives here.
 from enum import StrEnum
 from typing import Final
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 __all__ = [
     "AgentRole",
+    "ModelUsage",
     "Run",
     "Task",
     "TaskPlan",
@@ -120,3 +121,20 @@ class Run(BaseModel):
     """An in-memory engineering run wrapping a single task plan."""
 
     plan: TaskPlan
+
+
+class ModelUsage(BaseModel):
+    """Provider- and runtime-agnostic token usage measurement.
+
+    A stable, normalized representation of token counts that future provider
+    and runtime adapters map their own usage formats into. This model is
+    deliberately descriptive, not interpretive: it stores the counters an
+    adapter supplies and makes no assumption about additive, billing, or
+    caching relationships between them. It performs no summation and derives
+    no totals; core does not know how any specific system accounts for usage.
+    """
+
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    cache_read_input_tokens: int = Field(default=0, ge=0)
+    cache_creation_input_tokens: int = Field(default=0, ge=0)

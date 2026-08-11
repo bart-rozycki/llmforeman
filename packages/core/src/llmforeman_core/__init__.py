@@ -9,6 +9,7 @@ from importlib.metadata import version
 
 from llmforeman_core.models import (
     AgentRole,
+    ModelUsage,
     Run,
     Task,
     TaskPlan,
@@ -18,6 +19,7 @@ from llmforeman_core.models import (
 
 __all__ = [
     "AgentRole",
+    "ModelUsage",
     "Run",
     "Task",
     "TaskPlan",
