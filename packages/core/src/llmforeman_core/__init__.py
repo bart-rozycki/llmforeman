@@ -13,6 +13,7 @@ from llmforeman_core.models import (
     Task,
     TaskPlan,
     TaskStatus,
+    can_transition,
 )
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "TaskPlan",
     "TaskStatus",
     "__version__",
+    "can_transition",
 ]
 
 __version__: str = version("llmforeman-core")

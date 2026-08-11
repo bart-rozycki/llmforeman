@@ -9,7 +9,73 @@ from llmforeman_core import (
     Task,
     TaskPlan,
     TaskStatus,
+    can_transition,
 )
+
+# Independently-defined expected v0.1 lifecycle contract. This is deliberately
+# written out by hand (not derived from production) so it can detect an
+# incorrect production mapping.
+_EXPECTED_LEGAL_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
+    TaskStatus.TODO: {TaskStatus.IN_PROGRESS},
+    TaskStatus.IN_PROGRESS: {
+        TaskStatus.REVIEW,
+        TaskStatus.BLOCKED,
+        TaskStatus.FAILED,
+    },
+    TaskStatus.REVIEW: {
+        TaskStatus.DONE,
+        TaskStatus.IN_PROGRESS,
+        TaskStatus.FAILED,
+    },
+    TaskStatus.BLOCKED: {TaskStatus.IN_PROGRESS},
+    TaskStatus.DONE: set(),
+    TaskStatus.FAILED: set(),
+}
+
+
+@pytest.mark.parametrize("current", list(TaskStatus))
+@pytest.mark.parametrize("target", list(TaskStatus))
+def test_full_transition_matrix(current: TaskStatus, target: TaskStatus) -> None:
+    expected = target in _EXPECTED_LEGAL_TRANSITIONS[current]
+    assert can_transition(current, target) is expected
+
+
+def test_all_same_status_transitions_illegal() -> None:
+    for status in TaskStatus:
+        assert can_transition(status, status) is False
+
+
+def test_done_has_no_outgoing_transitions() -> None:
+    assert all(
+        not can_transition(TaskStatus.DONE, target) for target in TaskStatus
+    )
+
+
+def test_failed_has_no_outgoing_transitions() -> None:
+    assert all(
+        not can_transition(TaskStatus.FAILED, target) for target in TaskStatus
+    )
+
+
+def test_task_can_transition_to_reflects_status() -> None:
+    task = Task(id="TASK-001", title="Implement feature", description="...")
+    assert task.can_transition_to(TaskStatus.IN_PROGRESS)
+    assert not task.can_transition_to(TaskStatus.DONE)
+
+
+def test_task_can_transition_to_follows_current_status() -> None:
+    task = Task(
+        id="TASK-001",
+        title="Implement feature",
+        description="...",
+        status=TaskStatus.REVIEW,
+    )
+    assert task.can_transition_to(TaskStatus.DONE)
+    assert task.can_transition_to(TaskStatus.IN_PROGRESS)
+    assert task.can_transition_to(TaskStatus.FAILED)
+    assert not task.can_transition_to(TaskStatus.TODO)
+    assert not task.can_transition_to(TaskStatus.BLOCKED)
+    assert not task.can_transition_to(TaskStatus.REVIEW)
 
 
 def test_task_status_members() -> None:

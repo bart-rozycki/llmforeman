@@ -1,12 +1,13 @@
 """Provider- and runtime-agnostic execution domain models.
 
 These models describe an in-memory engineering run as a task plan of
-individual tasks. They intentionally contain data and local validation only:
-no orchestration, execution, status-transition, scheduling, or persistence
-logic lives here.
+individual tasks. They contain data, local validation, and the pure task
+lifecycle transition policy only: no orchestration, execution, scheduling, or
+persistence logic lives here.
 """
 
 from enum import StrEnum
+from typing import Final
 
 from pydantic import BaseModel, field_validator
 
@@ -16,14 +17,15 @@ __all__ = [
     "Task",
     "TaskPlan",
     "TaskStatus",
+    "can_transition",
 ]
 
 
 class TaskStatus(StrEnum):
     """Current lifecycle state of a task.
 
-    Membership only; allowed transitions and terminal-state classification are
-    intentionally not modeled here.
+    Membership only. Legal transitions between states are defined separately by
+    the lifecycle policy (see ``_LEGAL_TRANSITIONS`` / ``can_transition``).
     """
 
     TODO = "TODO"
@@ -32,6 +34,36 @@ class TaskStatus(StrEnum):
     BLOCKED = "BLOCKED"
     DONE = "DONE"
     FAILED = "FAILED"
+
+
+_LEGAL_TRANSITIONS: Final[dict[TaskStatus, frozenset[TaskStatus]]] = {
+    TaskStatus.TODO: frozenset({TaskStatus.IN_PROGRESS}),
+    TaskStatus.IN_PROGRESS: frozenset(
+        {TaskStatus.REVIEW, TaskStatus.BLOCKED, TaskStatus.FAILED}
+    ),
+    TaskStatus.REVIEW: frozenset(
+        {TaskStatus.DONE, TaskStatus.IN_PROGRESS, TaskStatus.FAILED}
+    ),
+    TaskStatus.BLOCKED: frozenset({TaskStatus.IN_PROGRESS}),
+    TaskStatus.DONE: frozenset(),
+    TaskStatus.FAILED: frozenset(),
+}
+"""Single source of truth for the v0.1 task lifecycle.
+
+Maps each status to the set of statuses it may legally transition to. Any
+transition not listed here (including every same-status transition) is illegal.
+``DONE`` and ``FAILED`` are terminal and have no outgoing transitions.
+"""
+
+
+def can_transition(current: TaskStatus, target: TaskStatus) -> bool:
+    """Return whether moving from ``current`` to ``target`` is legal in v0.1.
+
+    Pure and deterministic; consults the single lifecycle source of truth.
+    Same-status transitions are always illegal.
+    """
+
+    return target in _LEGAL_TRANSITIONS[current]
 
 
 class AgentRole(StrEnum):
@@ -56,6 +88,11 @@ class Task(BaseModel):
     status: TaskStatus = TaskStatus.TODO
     assigned_role: AgentRole | None = None
     dependencies: list[str] = []
+
+    def can_transition_to(self, target: TaskStatus) -> bool:
+        """Return whether this task's status may legally move to ``target``."""
+
+        return can_transition(self.status, target)
 
     @field_validator("id", "title")
     @classmethod
