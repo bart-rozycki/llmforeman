@@ -4,7 +4,7 @@ version = "0.0.0"
 description = "LLMForeman core: product/domain/orchestration runtime (provider- and runtime-agnostic)."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = ["pydantic>=2.7"]
 
 [build-system]
 requires = ["hatchling"]

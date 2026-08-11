@@ -7,6 +7,21 @@ it only establishes the package boundary.
 
 from importlib.metadata import version
 
-__all__ = ["__version__"]
+from llmforeman_core.models import (
+    AgentRole,
+    Run,
+    Task,
+    TaskPlan,
+    TaskStatus,
+)
+
+__all__ = [
+    "AgentRole",
+    "Run",
+    "Task",
+    "TaskPlan",
+    "TaskStatus",
+    "__version__",
+]
 
 __version__: str = version("llmforeman-core")
