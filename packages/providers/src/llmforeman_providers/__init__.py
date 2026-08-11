@@ -9,6 +9,17 @@ No provider SDKs are declared or implemented yet.
 
 from importlib.metadata import version
 
-__all__ = ["__version__"]
+from llmforeman_providers.contracts import (
+    ModelProvider,
+    ModelRequest,
+    ModelResponse,
+)
+
+__all__ = [
+    "ModelProvider",
+    "ModelRequest",
+    "ModelResponse",
+    "__version__",
+]
 
 __version__: str = version("llmforeman-providers")

@@ -4,7 +4,10 @@ version = "0.0.0"
 description = "LLMForeman cloud LLM provider integrations (boundary only; no SDKs yet)."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "llmforeman-core",
+    "pydantic>=2.7",
+]
 
 [build-system]
 requires = ["hatchling"]
