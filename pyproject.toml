@@ -49,6 +49,12 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.13"
 strict = true
 warn_unused_configs = true
+# Per-package ``tests/conftest.py`` files are identical trivial import shims
+# (they only extend ``sys.path`` for importlib mode). They share the top-level
+# module name ``conftest`` across packages, which mypy cannot map uniquely
+# without ``__init__.py`` files; excluding these shims avoids that collision
+# without weakening type checking of real source or test modules.
+exclude = ["packages/.*/tests/conftest\\.py$"]
 files = [
     "packages/core/src",
     "packages/providers/src",
