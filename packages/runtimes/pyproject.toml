@@ -4,7 +4,10 @@ version = "0.0.0"
 description = "LLMForeman local inference runtime integrations (boundary only; no clients yet)."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "llmforeman-core",
+    "pydantic>=2.7",
+]
 
 [build-system]
 requires = ["hatchling"]
