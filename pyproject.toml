@@ -61,6 +61,13 @@ files = [
     "tests",
 ]
 
+# RelPrim (0.9.0) ships type annotations but no py.typed marker, so mypy cannot
+# consume them. Ignore its missing import metadata without weakening strictness
+# for our own code.
+[[tool.mypy.overrides]]
+module = ["relprim.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 # importlib import mode keeps identically-scoped test packages isolated

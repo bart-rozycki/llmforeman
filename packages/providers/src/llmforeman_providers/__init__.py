@@ -1,22 +1,41 @@
 """LLMForeman cloud provider integrations package.
 
-Future home of cloud LLM integrations (e.g. Anthropic, OpenAI, Gemini).
-A cloud *provider* is distinct from a local inference *runtime*
-(``llmforeman_runtimes``); the two boundaries are deliberately kept separate.
+Home of cloud LLM integrations. A cloud *provider* is distinct from a local
+inference *runtime* (``llmforeman_runtimes``); the two boundaries are
+deliberately kept separate.
 
-No provider SDKs are declared or implemented yet.
+Exposes the provider-agnostic generation contract, the provider-independent
+error hierarchy, and the concrete Anthropic adapter.
 """
 
 from importlib.metadata import version
 
+from llmforeman_providers.anthropic import (
+    AnthropicMessagesClient,
+    AnthropicProvider,
+)
 from llmforeman_providers.contracts import (
     ModelProvider,
     ModelRequest,
     ModelResponse,
 )
+from llmforeman_providers.errors import (
+    ModelProviderError,
+    ModelProviderPermanentError,
+    ModelProviderRateLimitError,
+    ModelProviderTimeoutError,
+    ModelProviderTransientError,
+)
 
 __all__ = [
+    "AnthropicMessagesClient",
+    "AnthropicProvider",
     "ModelProvider",
+    "ModelProviderError",
+    "ModelProviderPermanentError",
+    "ModelProviderRateLimitError",
+    "ModelProviderTimeoutError",
+    "ModelProviderTransientError",
     "ModelRequest",
     "ModelResponse",
     "__version__",

@@ -1,12 +1,14 @@
 [project]
 name = "llmforeman-providers"
 version = "0.0.0"
-description = "LLMForeman cloud LLM provider integrations (boundary only; no SDKs yet)."
+description = "LLMForeman cloud LLM provider integrations (includes the Anthropic provider)."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "anthropic>=0.121.0",
     "llmforeman-core",
     "pydantic>=2.7",
+    "relprim>=0.9.0",
 ]
 
 [build-system]
