@@ -7,6 +7,7 @@ it only establishes the package boundary.
 
 from importlib.metadata import version
 
+from llmforeman_core.foreman import Foreman
 from llmforeman_core.models import (
     AgentRole,
     ModelUsage,
@@ -19,6 +20,7 @@ from llmforeman_core.models import (
 
 __all__ = [
     "AgentRole",
+    "Foreman",
     "ModelUsage",
     "Run",
     "Task",
