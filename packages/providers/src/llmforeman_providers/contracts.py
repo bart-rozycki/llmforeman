@@ -21,6 +21,8 @@ __all__ = [
     "ModelProvider",
     "ModelRequest",
     "ModelResponse",
+    "StructuredModelProvider",
+    "StructuredModelResponse",
 ]
 
 
@@ -81,5 +83,48 @@ class ModelProvider(Protocol):
         involve network I/O, cancellation, and orchestration concurrency. This
         declaration defines the contract only and implements no execution
         behavior.
+        """
+        ...
+
+
+class StructuredModelResponse[T: BaseModel](BaseModel):
+    """Provider-independent result of a structured-generation request.
+
+    Generic over the caller-supplied Pydantic output type ``T`` so that the
+    concrete requested schema is preserved statically: requesting ``Foo`` yields
+    a ``StructuredModelResponse[Foo]`` whose ``output`` is a ``Foo``, not a bare
+    ``BaseModel`` or ``dict[str, Any]``. A successful response always carries a
+    fully validated ``output`` and normalized token ``usage``; partial,
+    unparsed, or otherwise invalid results are not representable here. Providers
+    that cannot produce a valid result fail through the provider error boundary
+    instead of returning this type.
+    """
+
+    output: T
+    usage: ModelUsage
+
+
+class StructuredModelProvider(Protocol):
+    """Typed, async structured-generation capability.
+
+    An orthogonal structural capability, separate from ``ModelProvider``: a
+    caller that needs a validated schema depends on this interface directly
+    rather than probing whether a plain ``ModelProvider`` happens to support a
+    schema mode. A concrete adapter (e.g. Anthropic) may structurally satisfy
+    both contracts. This declaration defines semantics only and performs no
+    schema translation, provider I/O, or JSON parsing.
+    """
+
+    async def generate_structured[T: BaseModel](
+        self,
+        request: ModelRequest,
+        output_type: type[T],
+    ) -> StructuredModelResponse[T]:
+        """Generate output conforming to the Pydantic ``output_type``.
+
+        Reuses the existing text-generation ``ModelRequest`` for prompt/system
+        input; the distinction from ``generate`` is solely the typed output
+        contract. Returns a response whose ``output`` is a validated instance of
+        ``output_type``, preserving that concrete type statically.
         """
         ...

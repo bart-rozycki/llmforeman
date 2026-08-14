@@ -18,6 +18,8 @@ from llmforeman_providers.contracts import (
     ModelProvider,
     ModelRequest,
     ModelResponse,
+    StructuredModelProvider,
+    StructuredModelResponse,
 )
 from llmforeman_providers.errors import (
     ModelProviderError,
@@ -38,6 +40,8 @@ __all__ = [
     "ModelProviderTransientError",
     "ModelRequest",
     "ModelResponse",
+    "StructuredModelProvider",
+    "StructuredModelResponse",
     "__version__",
 ]
 
