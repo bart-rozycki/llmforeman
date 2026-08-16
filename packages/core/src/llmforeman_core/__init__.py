@@ -11,6 +11,8 @@ from llmforeman_core.foreman import Foreman, ForemanPlanValidationError
 from llmforeman_core.models import (
     AgentRole,
     ModelUsage,
+    RepositoryContext,
+    RepositoryFile,
     Run,
     Task,
     TaskPlan,
@@ -23,6 +25,8 @@ __all__ = [
     "Foreman",
     "ForemanPlanValidationError",
     "ModelUsage",
+    "RepositoryContext",
+    "RepositoryFile",
     "Run",
     "Task",
     "TaskPlan",

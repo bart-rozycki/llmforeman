@@ -7,6 +7,7 @@ persistence logic lives here.
 """
 
 from enum import StrEnum
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import Final
 
 from pydantic import BaseModel, Field, field_validator
@@ -14,6 +15,8 @@ from pydantic import BaseModel, Field, field_validator
 __all__ = [
     "AgentRole",
     "ModelUsage",
+    "RepositoryContext",
+    "RepositoryFile",
     "Run",
     "Task",
     "TaskPlan",
@@ -138,3 +141,50 @@ class ModelUsage(BaseModel):
     output_tokens: int = Field(ge=0)
     cache_read_input_tokens: int = Field(default=0, ge=0)
     cache_creation_input_tokens: int = Field(default=0, ge=0)
+
+
+class RepositoryFile(BaseModel):
+    """One selected repository file identified by a repository-relative path.
+
+    Represents already-prepared context: the ``content`` is supplied as-is by
+    whatever future component selected and read the file. This model performs no
+    filesystem access, encoding detection, or content interpretation of any
+    kind; it only guarantees that ``path`` is a repository-relative logical
+    path suitable for serialization and model context.
+    """
+
+    path: str
+    content: str
+
+    @field_validator("path")
+    @classmethod
+    def _validate_repository_relative_path(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("path must not be empty or whitespace-only")
+        if "\x00" in value:
+            raise ValueError("path must not contain NUL characters")
+        # Cross-platform, filesystem-free absolute-path detection. Parse the
+        # value as both POSIX and Windows pure paths so an absolute path is
+        # rejected regardless of which OS runs this code.
+        if PurePosixPath(value).is_absolute() or PureWindowsPath(value).is_absolute():
+            raise ValueError("path must be repository-relative, not absolute")
+        # Reject parent traversal in either separator convention without
+        # resolving the path against the filesystem or the working directory.
+        parts = PurePosixPath(value).parts + PureWindowsPath(value).parts
+        if ".." in parts:
+            raise ValueError("path must not contain parent traversal segments ('..')")
+        return value
+
+
+class RepositoryContext(BaseModel):
+    """Normalized, provider-independent repository context.
+
+    Holds a lightweight structural overview (``file_tree``) together with the
+    full contents of only the files deliberately selected for context
+    (``files``). It does not model the repository root, describe how the tree
+    or selection were produced, or imply that every repository file is
+    included.
+    """
+
+    file_tree: str
+    files: list[RepositoryFile] = []
