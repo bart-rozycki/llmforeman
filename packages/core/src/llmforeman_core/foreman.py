@@ -16,7 +16,7 @@ must never depend on.
 
 from typing import Protocol
 
-from llmforeman_core.models import TaskPlan
+from llmforeman_core.models import RepositoryContext, TaskPlan
 
 __all__ = [
     "Foreman",
@@ -54,7 +54,11 @@ class Foreman(Protocol):
     selection, prompts, credentials, retries, timeouts, or lifecycle hooks.
     """
 
-    async def create_plan(self, objective: str) -> TaskPlan:
+    async def create_plan(
+        self,
+        objective: str,
+        repository_context: RepositoryContext | None = None,
+    ) -> TaskPlan:
         """Produce a :class:`~llmforeman_core.models.TaskPlan` for ``objective``.
 
         ``objective`` is an engineering objective expressed as free text and is
@@ -64,6 +68,17 @@ class Foreman(Protocol):
         because a ``Protocol`` declaration cannot itself enforce runtime
         validation, concrete implementations and application entry points are
         responsible for rejecting a blank objective before performing any work.
+        A ``repository_context`` never makes an invalid objective valid.
+
+        ``repository_context`` is optional already-prepared, normalized domain
+        data (see :class:`~llmforeman_core.models.RepositoryContext`). When it is
+        ``None`` (the default) planning proceeds from the objective alone, so
+        existing objective-only call sites remain valid. When supplied, concrete
+        implementations may include it as additional input for the planner; how
+        the context was produced is out of scope for this port. This capability
+        deliberately never accepts repository paths, filesystem handles, or any
+        provider-specific request type: repository data enters only as this
+        already-normalized core-owned model.
 
         Asynchronous from the outset because real planning will involve
         external model interactions and, later, repository/context operations.

@@ -19,6 +19,8 @@ from llmforeman_core import (
     Foreman,
     ForemanPlanValidationError,
     ModelUsage,
+    RepositoryContext,
+    RepositoryFile,
     TaskPlan,
     TaskStatus,
 )
@@ -125,6 +127,183 @@ def test_valid_objective_maps_to_single_structured_call() -> None:
     assert request.prompt == "Add Retry-After validation"
     assert request.system_prompt == FOREMAN_SYSTEM_PROMPT
     assert output_type is _ForemanPlanOutput
+
+
+def test_no_context_prompt_has_no_repository_sections() -> None:
+    provider = FakeStructuredProvider(output=_plan(_task("TASK-001")))
+    foreman = AnthropicForeman(provider)
+
+    run(foreman.create_plan("Add Retry-After validation"))
+
+    request, _ = provider.calls[0]
+    # None -> compact objective-only prompt: no artificial repository headings.
+    assert request.prompt == "Add Retry-After validation"
+    assert "Repository tree:" not in request.prompt
+    assert "Repository files:" not in request.prompt
+
+
+# --- Repository context formatting ---------------------------------------
+
+
+def test_populated_context_is_formatted_into_user_prompt() -> None:
+    provider = FakeStructuredProvider(output=_plan(_task("TASK-001")))
+    foreman = AnthropicForeman(provider)
+    context = RepositoryContext(
+        file_tree="packages/\n  core/\n  providers/",
+        files=[
+            RepositoryFile(
+                path="packages/core/src/llmforeman_core/models.py",
+                content="CORE_CONTENT",
+            ),
+            RepositoryFile(
+                path="packages/providers/src/llmforeman_providers/foreman.py",
+                content="FOREMAN_CONTENT",
+            ),
+        ],
+    )
+
+    run(foreman.create_plan("Add Retry-After validation", repository_context=context))
+
+    assert provider.call_count == 1
+    request, _ = provider.calls[0]
+    prompt = request.prompt
+
+    # Objective is present and clearly labeled/bounded.
+    assert "Engineering objective:" in prompt
+    assert "Add Retry-After validation" in prompt
+    # Repository tree label and exact tree content.
+    assert "Repository tree:" in prompt
+    assert "packages/\n  core/\n  providers/" in prompt
+    # Repository files label and exact paths + contents.
+    assert "Repository files:" in prompt
+    assert "packages/core/src/llmforeman_core/models.py" in prompt
+    assert "CORE_CONTENT" in prompt
+    assert "packages/providers/src/llmforeman_providers/foreman.py" in prompt
+    assert "FOREMAN_CONTENT" in prompt
+
+
+def test_context_file_order_is_preserved() -> None:
+    provider = FakeStructuredProvider(output=_plan(_task("TASK-001")))
+    foreman = AnthropicForeman(provider)
+    # Intentionally non-alphabetical order.
+    context = RepositoryContext(
+        file_tree="",
+        files=[
+            RepositoryFile(path="zeta.py", content="ZETA"),
+            RepositoryFile(path="alpha.py", content="ALPHA"),
+            RepositoryFile(path="mid.py", content="MID"),
+        ],
+    )
+
+    run(foreman.create_plan("Objective", repository_context=context))
+
+    prompt = provider.calls[0][0].prompt
+    assert prompt.index("zeta.py") < prompt.index("alpha.py") < prompt.index("mid.py")
+
+
+def test_empty_file_content_is_preserved() -> None:
+    provider = FakeStructuredProvider(output=_plan(_task("TASK-001")))
+    foreman = AnthropicForeman(provider)
+    context = RepositoryContext(
+        file_tree="src/",
+        files=[RepositoryFile(path="src/empty.py", content="")],
+    )
+
+    run(foreman.create_plan("Objective", repository_context=context))
+
+    assert provider.call_count == 1
+    prompt = provider.calls[0][0].prompt
+    # The empty file is not dropped: its path is represented.
+    assert "src/empty.py" in prompt
+
+
+def test_explicit_empty_context_makes_one_call_without_fake_files() -> None:
+    provider = FakeStructuredProvider(output=_plan(_task("TASK-001")))
+    foreman = AnthropicForeman(provider)
+    context = RepositoryContext(file_tree="", files=[])
+
+    run(foreman.create_plan("Objective", repository_context=context))
+
+    assert provider.call_count == 1
+    prompt = provider.calls[0][0].prompt
+    # Explicitly supplied but empty: distinguishable from None (headings present),
+    # yet no file entries are fabricated.
+    assert "Engineering objective:" in prompt
+    assert "Repository files:" in prompt
+    assert "--- path:" not in prompt
+
+
+def test_repository_data_stays_out_of_system_prompt() -> None:
+    provider = FakeStructuredProvider(output=_plan(_task("TASK-001")))
+    foreman = AnthropicForeman(provider)
+    context = RepositoryContext(
+        file_tree="UNIQUE_TREE_MARKER",
+        files=[RepositoryFile(path="marker.py", content="UNIQUE_FILE_MARKER")],
+    )
+
+    run(foreman.create_plan("Objective", repository_context=context))
+
+    request, _ = provider.calls[0]
+    # Repository data appears only in the user prompt, never the system prompt.
+    assert "UNIQUE_TREE_MARKER" in request.prompt
+    assert "UNIQUE_FILE_MARKER" in request.prompt
+    assert request.system_prompt == FOREMAN_SYSTEM_PROMPT
+    assert "UNIQUE_TREE_MARKER" not in request.system_prompt
+    assert "UNIQUE_FILE_MARKER" not in request.system_prompt
+    assert "marker.py" not in request.system_prompt
+
+
+def test_context_prompt_is_deterministic() -> None:
+    provider_a = FakeStructuredProvider(output=_plan(_task("TASK-001")))
+    provider_b = FakeStructuredProvider(output=_plan(_task("TASK-001")))
+    context = RepositoryContext(
+        file_tree="a/\n  b/",
+        files=[RepositoryFile(path="a/b/c.py", content="C")],
+    )
+
+    run(AnthropicForeman(provider_a).create_plan("Obj", repository_context=context))
+    run(AnthropicForeman(provider_b).create_plan("Obj", repository_context=context))
+
+    assert provider_a.calls[0][0].prompt == provider_b.calls[0][0].prompt
+
+
+def test_context_supplied_still_rejects_blank_objective_before_call() -> None:
+    provider = FakeStructuredProvider()
+    foreman = AnthropicForeman(provider)
+    context = RepositoryContext(
+        file_tree="x/",
+        files=[RepositoryFile(path="x/y.py", content="Y")],
+    )
+
+    with pytest.raises(ValueError):
+        run(foreman.create_plan("   ", repository_context=context))
+
+    assert provider.call_count == 0
+
+
+def test_context_does_not_affect_domain_conversion() -> None:
+    provider = FakeStructuredProvider(
+        output=_plan(
+            _task("TASK-001", title="Design", role=AgentRole.DEVELOPER),
+            _task("TASK-002", title="Test", role=AgentRole.TESTER, dependencies=["TASK-001"]),
+        )
+    )
+    foreman = AnthropicForeman(provider)
+    context = RepositoryContext(
+        file_tree="src/",
+        files=[RepositoryFile(path="src/mod.py", content="C")],
+    )
+
+    plan = run(foreman.create_plan("Objective", repository_context=context))
+
+    assert [t.id for t in plan.tasks] == ["TASK-001", "TASK-002"]
+    assert [t.title for t in plan.tasks] == ["Design", "Test"]
+    assert [t.assigned_role for t in plan.tasks] == [
+        AgentRole.DEVELOPER,
+        AgentRole.TESTER,
+    ]
+    assert [t.dependencies for t in plan.tasks] == [[], ["TASK-001"]]
+    assert all(t.status is TaskStatus.TODO for t in plan.tasks)
 
 
 # --- Blank objective ------------------------------------------------------

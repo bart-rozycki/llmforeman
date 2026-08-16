@@ -10,7 +10,13 @@ statically by mypy via the ``Foreman`` annotation below), typed code can
 import asyncio
 from collections.abc import Awaitable
 
-from llmforeman_core import Foreman, Task, TaskPlan
+from llmforeman_core import (
+    Foreman,
+    RepositoryContext,
+    RepositoryFile,
+    Task,
+    TaskPlan,
+)
 
 
 def run[T](coro: Awaitable[T]) -> T:
@@ -20,7 +26,11 @@ def run[T](coro: Awaitable[T]) -> T:
 class FakeForeman:
     """Test-local structural implementation of the ``Foreman`` port."""
 
-    async def create_plan(self, objective: str) -> TaskPlan:
+    async def create_plan(
+        self,
+        objective: str,
+        repository_context: RepositoryContext | None = None,
+    ) -> TaskPlan:
         return TaskPlan(tasks=[Task(id="t1", title=objective, description=objective)])
 
 
@@ -38,3 +48,17 @@ def test_create_plan_accepts_objective_and_returns_task_plan() -> None:
 
     assert isinstance(plan, TaskPlan)
     assert plan.tasks[0].title == "Add retry support"
+
+
+def test_create_plan_accepts_optional_repository_context() -> None:
+    # Objective-only and context-supplied calls are both valid, and the return
+    # type remains the existing core ``TaskPlan``.
+    foreman: Foreman = FakeForeman()
+    context = RepositoryContext(
+        file_tree="packages/",
+        files=[RepositoryFile(path="pkg/mod.py", content="X")],
+    )
+
+    plan = run(foreman.create_plan("Add retry support", repository_context=context))
+
+    assert isinstance(plan, TaskPlan)
