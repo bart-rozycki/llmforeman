@@ -6,17 +6,27 @@ This boundary is deliberately distinct from cloud *providers*
 (``llmforeman_providers``) and local inference *runtimes*
 (``llmforeman_runtimes``); it depends only on ``llmforeman_core``.
 
-Exposes the typed async ``RepositoryContextLoader`` contract for loading a core
-``RepositoryContext`` from a local repository root. No concrete loader is
-implemented yet.
+Exposes the typed async ``RepositoryContextLoader`` contract, its concrete
+Git-backed implementation ``GitRepositoryContextLoader``, and the small
+workspace error hierarchy that implementation raises.
 """
 
 from importlib.metadata import version
 
 from llmforeman_workspace.contracts import RepositoryContextLoader
+from llmforeman_workspace.errors import (
+    InvalidRepositoryError,
+    RepositoryInspectionError,
+    WorkspaceError,
+)
+from llmforeman_workspace.git_loader import GitRepositoryContextLoader
 
 __all__ = [
+    "GitRepositoryContextLoader",
+    "InvalidRepositoryError",
     "RepositoryContextLoader",
+    "RepositoryInspectionError",
+    "WorkspaceError",
     "__version__",
 ]
 
