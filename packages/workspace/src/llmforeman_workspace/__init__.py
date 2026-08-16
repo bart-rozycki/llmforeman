@@ -7,13 +7,17 @@ This boundary is deliberately distinct from cloud *providers*
 (``llmforeman_runtimes``); it depends only on ``llmforeman_core``.
 
 Exposes the typed async ``RepositoryContextLoader`` contract, its concrete
-Git-backed implementation ``GitRepositoryContextLoader``, and the small
-workspace error hierarchy that implementation raises.
+Git-backed implementation ``GitRepositoryContextLoader``, the typed async
+``RepositoryFileReader`` contract for explicit on-demand file retrieval, and
+the small workspace error hierarchy that implementation raises.
 """
 
 from importlib.metadata import version
 
-from llmforeman_workspace.contracts import RepositoryContextLoader
+from llmforeman_workspace.contracts import (
+    RepositoryContextLoader,
+    RepositoryFileReader,
+)
 from llmforeman_workspace.errors import (
     InvalidRepositoryError,
     RepositoryInspectionError,
@@ -25,6 +29,7 @@ __all__ = [
     "GitRepositoryContextLoader",
     "InvalidRepositoryError",
     "RepositoryContextLoader",
+    "RepositoryFileReader",
     "RepositoryInspectionError",
     "WorkspaceError",
     "__version__",
