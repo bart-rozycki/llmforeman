@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Awaitable, Callable
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from anthropic import (
     APIConnectionError,
@@ -26,7 +26,8 @@ from anthropic import (
     AsyncAnthropic,
     RateLimitError,
 )
-from anthropic.types import Message
+from anthropic.types import Message, ParsedMessage
+from pydantic import BaseModel, ValidationError
 from relprim import (
     AsyncOperation,
     ExponentialBackoff,
@@ -39,7 +40,11 @@ from relprim import (
 )
 
 from llmforeman_core import ModelUsage
-from llmforeman_providers.contracts import ModelRequest, ModelResponse
+from llmforeman_providers.contracts import (
+    ModelRequest,
+    ModelResponse,
+    StructuredModelResponse,
+)
 from llmforeman_providers.errors import (
     ModelProviderError,
     ModelProviderPermanentError,
@@ -53,18 +58,36 @@ __all__ = ["AnthropicMessagesClient", "AnthropicProvider"]
 _MessageCreate = Callable[..., Awaitable[Message]]
 
 
+class _MessagesParse(Protocol):
+    """Callable seam for the generic Anthropic structured-output request.
+
+    Models only the portion of ``messages.parse`` this adapter consumes while
+    preserving the ``output_format`` -> ``ParsedMessage`` generic relationship
+    so the caller-supplied Pydantic type flows through statically.
+    """
+
+    def __call__[T: BaseModel](
+        self, *, output_format: type[T], **kwargs: Any
+    ) -> Awaitable[ParsedMessage[T]]: ...
+
+
 class _MessagesResource(Protocol):
-    """The single Anthropic Messages entry point this adapter depends on."""
+    """The Anthropic Messages entry points this adapter depends on."""
 
     def create(self, **kwargs: Any) -> Awaitable[Message]: ...
+
+    def parse[T: BaseModel](
+        self, *, output_format: type[T], **kwargs: Any
+    ) -> Awaitable[ParsedMessage[T]]: ...
 
 
 class AnthropicMessagesClient(Protocol):
     """Minimal async Anthropic client seam used for testable injection.
 
-    Only ``client.messages.create`` is exercised by the adapter; this Protocol
-    exists solely so a narrow fake can be supplied in tests without a network
-    call. It is intentionally not a general SDK abstraction.
+    Only ``client.messages.create`` and ``client.messages.parse`` are exercised
+    by the adapter; this Protocol exists solely so a narrow fake can be supplied
+    in tests without a network call. It is intentionally not a general SDK
+    abstraction.
     """
 
     @property
@@ -179,6 +202,36 @@ def _normalize_response(message: Message) -> ModelResponse:
     )
 
 
+def _build_structured_response[T: BaseModel](
+    message: ParsedMessage[T],
+) -> StructuredModelResponse[T]:
+    """Normalize a parsed Anthropic response into a typed structured response.
+
+    Enforces the structured-generation success contract: an HTTP-successful
+    response is not a successful structured result unless generation was neither
+    refused nor truncated and the SDK produced a non-``None`` validated
+    ``parsed_output``. Each failing condition is a non-retryable provider fault,
+    never a partial success and never a manually parsed fallback.
+    """
+
+    if message.stop_reason == "refusal":
+        raise ModelProviderPermanentError(
+            "Anthropic refused the structured-generation request."
+        )
+    if message.stop_reason == "max_tokens":
+        raise ModelProviderPermanentError(
+            "Anthropic structured generation was truncated by max_tokens."
+        )
+
+    parsed = message.parsed_output
+    if parsed is None:
+        raise ModelProviderPermanentError(
+            "Anthropic returned no parsed structured output."
+        )
+
+    return StructuredModelResponse[T](output=parsed, usage=_normalize_usage(message))
+
+
 class AnthropicProvider:
     """Anthropic Claude implementation of the :class:`ModelProvider` contract.
 
@@ -189,7 +242,8 @@ class AnthropicProvider:
     """
 
     _MODEL: str = "claude-opus-5"
-    _OPERATION_NAME: str = "anthropic.messages.create"
+    _OPERATION_NAME_CREATE: str = "anthropic.messages.create"
+    _OPERATION_NAME_PARSE: str = "anthropic.messages.parse"
 
     def __init__(
         self,
@@ -217,9 +271,17 @@ class AnthropicProvider:
             owned = self._build_client(api_key)
             self._owned_client = owned
             self._create: _MessageCreate = owned.messages.create
+            # The resolved Anthropic SDK types ``parse`` with explicit keyword
+            # parameters rather than ``**kwargs``, so its bound method is not
+            # structurally assignable to the narrow ``**kwargs`` seam this
+            # adapter consumes. The cast is confined to the client wiring; the
+            # generic ``output_format`` -> ``ParsedMessage[T]`` relationship is
+            # preserved by the seam type and the public method signature.
+            self._parse: _MessagesParse = cast(_MessagesParse, owned.messages.parse)
         else:
             self._owned_client = None
             self._create = client.messages.create
+            self._parse = client.messages.parse
 
         self._retry_policy = RetryPolicy(
             max_attempts=max_attempts,
@@ -256,24 +318,43 @@ class AnthropicProvider:
             kwargs["system"] = request.system_prompt
         return kwargs
 
-    def _resilient_operation(
+    async def _execute[R](
         self,
-        request: ModelRequest,
-    ) -> AsyncOperation[[], Message]:
-        request_kwargs = self._build_request_kwargs(request)
+        name: str,
+        attempt: Callable[[], Awaitable[R]],
+    ) -> R:
+        """Run one Anthropic attempt through the shared reliability boundary.
 
-        async def attempt() -> Message:
-            try:
-                return await self._create(**request_kwargs)
-            except APIError as exc:
-                raise _translate_anthropic_error(exc) from exc
+        Both plain and structured generation route through this one helper so
+        RelPrim remains the single owner of retry, timeout, and rate-limit
+        semantics; the helper is deliberately agnostic to the attempt's result.
 
-        return (
-            async_operation(self._OPERATION_NAME, attempt)
+        Already-normalized provider errors are re-raised with their original
+        cause intact; a RelPrim timeout becomes a provider timeout error;
+        anything else defaults safely to the base provider error rather than
+        being treated as retryable. Caller cancellation is not caught here.
+        """
+
+        operation: AsyncOperation[[], R] = (
+            async_operation(name, attempt)
             .with_timeout(self._timeout_policy)
             .with_rate_limit(self._rate_limit_policy)
             .with_retry(self._retry_policy)
         )
+
+        try:
+            result = await operation.run()
+        except OperationExecutionError as exc:
+            cause = exc.cause
+            if isinstance(cause, ModelProviderError):
+                raise cause from cause.__cause__
+            if isinstance(cause, OperationTimeoutError):
+                raise ModelProviderTimeoutError("Anthropic request timed out.") from cause
+            raise ModelProviderError("Anthropic request failed unexpectedly.") from cause
+
+        # RelPrim ships without a ``py.typed`` marker, so its result value is
+        # seen as ``Any``; ``R`` is fixed by the typed ``attempt`` callable.
+        return cast(R, result.value)
 
     async def generate(self, request: ModelRequest) -> ModelResponse:
         """Generate a response for ``request`` via the Anthropic Messages API.
@@ -285,17 +366,52 @@ class AnthropicProvider:
         base provider error rather than being treated as retryable.
         """
 
-        try:
-            result = await self._resilient_operation(request).run()
-        except OperationExecutionError as exc:
-            cause = exc.cause
-            if isinstance(cause, ModelProviderError):
-                raise cause from cause.__cause__
-            if isinstance(cause, OperationTimeoutError):
-                raise ModelProviderTimeoutError("Anthropic request timed out.") from cause
-            raise ModelProviderError("Anthropic request failed unexpectedly.") from cause
+        request_kwargs = self._build_request_kwargs(request)
 
-        return _normalize_response(result.value)
+        async def attempt() -> Message:
+            try:
+                return await self._create(**request_kwargs)
+            except APIError as exc:
+                raise _translate_anthropic_error(exc) from exc
+
+        message = await self._execute(self._OPERATION_NAME_CREATE, attempt)
+        return _normalize_response(message)
+
+    async def generate_structured[T: BaseModel](
+        self,
+        request: ModelRequest,
+        output_type: type[T],
+    ) -> StructuredModelResponse[T]:
+        """Generate a validated ``output_type`` instance via Structured Outputs.
+
+        Uses Anthropic's native ``messages.parse`` helper, passing the caller's
+        Pydantic type as ``output_format`` so the SDK owns schema translation
+        and validation; the generic ``T`` is preserved end to end. Prompt,
+        system-prompt, model, and ``max_tokens`` mapping is reused from plain
+        generation, and the network call passes through the same RelPrim
+        reliability boundary.
+
+        Expected SDK/Pydantic structured parse or validation failures are
+        normalized as non-retryable provider faults (no manual JSON fallback
+        and no structured-specific retry). Refusal, ``max_tokens`` truncation,
+        and a missing ``parsed_output`` are likewise non-retryable failures
+        rather than partial successes.
+        """
+
+        request_kwargs = self._build_request_kwargs(request)
+
+        async def attempt() -> ParsedMessage[T]:
+            try:
+                return await self._parse(output_format=output_type, **request_kwargs)
+            except APIError as exc:
+                raise _translate_anthropic_error(exc) from exc
+            except ValidationError as exc:
+                raise ModelProviderPermanentError(
+                    "Anthropic structured output failed schema validation."
+                ) from exc
+
+        message = await self._execute(self._OPERATION_NAME_PARSE, attempt)
+        return _build_structured_response(message)
 
     async def aclose(self) -> None:
         """Close the provider-owned Anthropic client, if any.
