@@ -13,6 +13,7 @@ members = [
     "llmforeman-core",
     "llmforeman-providers",
     "llmforeman-runtimes",
+    "llmforeman-workspace",
 ]
 
 [[package]]
@@ -355,6 +356,7 @@ dependencies = [
     { name = "llmforeman-core" },
     { name = "llmforeman-providers" },
     { name = "llmforeman-runtimes" },
+    { name = "llmforeman-workspace" },
 ]
 
 [package.dev-dependencies]
@@ -370,6 +372,7 @@ requires-dist = [
     { name = "llmforeman-core", editable = "packages/core" },
     { name = "llmforeman-providers", editable = "packages/providers" },
     { name = "llmforeman-runtimes", editable = "packages/runtimes" },
+    { name = "llmforeman-workspace", editable = "packages/workspace" },
 ]
 
 [package.metadata.requires-dev]
@@ -434,6 +437,17 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.7" },
     { name = "relprim", specifier = ">=0.9.0" },
 ]
+
+[[package]]
+name = "llmforeman-workspace"
+version = "0.0.0"
+source = { editable = "packages/workspace" }
+dependencies = [
+    { name = "llmforeman-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "llmforeman-core", editable = "packages/core" }]
 
 [[package]]
 name = "mypy"

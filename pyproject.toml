@@ -7,6 +7,7 @@ dependencies = [
     "llmforeman-core",
     "llmforeman-providers",
     "llmforeman-runtimes",
+    "llmforeman-workspace",
     "llmforeman-cli",
 ]
 
@@ -21,6 +22,7 @@ members = ["packages/*"]
 llmforeman-core = { workspace = true }
 llmforeman-providers = { workspace = true }
 llmforeman-runtimes = { workspace = true }
+llmforeman-workspace = { workspace = true }
 llmforeman-cli = { workspace = true }
 
 [dependency-groups]
@@ -39,6 +41,7 @@ src = [
     "packages/core/src",
     "packages/providers/src",
     "packages/runtimes/src",
+    "packages/workspace/src",
     "packages/cli/src",
 ]
 
@@ -59,10 +62,12 @@ files = [
     "packages/core/src",
     "packages/providers/src",
     "packages/runtimes/src",
+    "packages/workspace/src",
     "packages/cli/src",
     "packages/core/tests",
     "packages/providers/tests",
     "packages/runtimes/tests",
+    "packages/workspace/tests",
     "packages/cli/tests",
     "tests",
 ]
@@ -83,6 +88,7 @@ testpaths = [
     "packages/core/tests",
     "packages/providers/tests",
     "packages/runtimes/tests",
+    "packages/workspace/tests",
     "packages/cli/tests",
     "tests/integration",
 ]

@@ -13,6 +13,7 @@ def test_all_workspace_packages_are_installed() -> None:
         "llmforeman-core",
         "llmforeman-providers",
         "llmforeman-runtimes",
+        "llmforeman-workspace",
         "llmforeman-cli",
     ):
         assert version(dist)
@@ -23,7 +24,11 @@ def test_all_workspace_packages_import_together() -> None:
     import llmforeman_core
     import llmforeman_providers
     import llmforeman_runtimes
+    import llmforeman_workspace
 
     # provider and runtime are distinct import roots (provider != runtime).
     assert llmforeman_providers.__name__ != llmforeman_runtimes.__name__
     assert llmforeman_core.__name__ != llmforeman_cli.__name__
+    # workspace is a distinct infrastructure boundary from provider/runtime.
+    assert llmforeman_workspace.__name__ != llmforeman_runtimes.__name__
+    assert llmforeman_workspace.__name__ != llmforeman_providers.__name__
