@@ -2,22 +2,26 @@
 
 LLMForeman is a local-first AI software-engineering orchestration platform.
 
-> **Early-stage monorepo.** This repository currently contains only the
-> foundational skeleton — package boundaries, toolchain, and smoke tests.
-> **No product functionality is implemented yet.**
+> **Early-stage and under active development.** The repository currently
+> contains the foundational architecture plus initial vertical slices:
+> Anthropic-backed Foreman planning, local Ollama runtime support,
+> provider- and runtime-agnostic execution-domain models, and Git
+> repository-context support. Full autonomous task execution and desktop
+> product workflows are **not implemented yet**.
 
 ## Repository layout
 
 The repository is organized around a few coarse, deliberately separated
 boundaries:
 
-| Path                    | Boundary  | Responsibility                                                             |
-| ----------------------- | --------- | -------------------------------------------------------------------------- |
-| `packages/core`         | core      | Product/domain/orchestration runtime. Independent of providers & runtimes. |
-| `packages/providers`    | providers | Cloud LLM integrations (Anthropic, OpenAI, Gemini, …).                     |
-| `packages/runtimes`     | runtimes  | Local inference engines (Ollama, MLX, llama.cpp, …).                       |
-| `packages/cli`          | CLI       | Thin entry point into the Python runtime.                                  |
-| `apps/desktop`          | desktop   | Tauri 2 + React + TypeScript UI shell (narrow native bridge only).         |
+| Path                 | Boundary  | Responsibility                                                                                        |
+| -------------------- | --------- | ---------------------------------------------------------------------------------------------------- |
+| `packages/core`      | core      | Product/domain/orchestration runtime: execution-domain models and the Foreman planning port. Independent of providers & runtimes. |
+| `packages/providers` | providers | Cloud LLM integrations. Anthropic text/structured generation and Anthropic-backed Foreman planning implemented; OpenAI, Gemini, … planned. |
+| `packages/runtimes`  | runtimes  | Local inference engines. Ollama runtime implemented; MLX, llama.cpp, … planned.                       |
+| `packages/workspace` | workspace | Local coding workspace and repository-context infrastructure (Git repository-context loader).         |
+| `packages/cli`       | CLI       | Thin command-line entry point over the Python runtime. Currently a no-op scaffold with no real commands. |
+| `apps/desktop`       | desktop   | Tauri 2 + React + TypeScript UI shell (narrow native bridge only). No product workflows yet.          |
 
 An important architectural invariant: **`provider != runtime`**. A cloud model
 provider and a local inference engine are distinct integration boundaries.
@@ -32,7 +36,7 @@ provider and a local inference engine are distinct integration boundaries.
 
 ## Python: bootstrap & validation
 
-The repository root is a `uv` workspace containing the four Python packages,
+The repository root is a `uv` workspace containing the five Python packages,
 each using a `src/` layout and installed as an editable workspace member.
 
 ```sh
@@ -58,6 +62,18 @@ npm run desktop:tauri build                 # full Tauri build (requires Rust)
 
 ## Status
 
-This is the first public commit of the foundation. It intentionally contains
-no LLM calls, orchestration, provider/runtime integrations, persistence, IPC,
-or desktop product behavior.
+LLMForeman is under active development and remains early-stage. Meaningful
+foundational vertical slices exist today:
+
+- provider- and runtime-agnostic execution-domain models, including the task
+  lifecycle policy;
+- a core-owned Foreman planning port with an Anthropic-backed implementation
+  built on structured generation;
+- local inference via an Ollama runtime adapter;
+- a Git repository-context loader that produces normalized repository context.
+
+Major product workflow pieces are **not implemented yet**, including end-to-end
+autonomous task execution, local coding-worker execution, repository
+search/exploration and file-editing tools, review loops, scheduling,
+persistence-backed orchestration, the CLI command surface, and the desktop
+product experience.
