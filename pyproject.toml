@@ -86,3 +86,9 @@ testpaths = [
     "packages/cli/tests",
     "tests/integration",
 ]
+markers = [
+    # Opt-in tests that make real, paid external API calls. Disabled by default
+    # via an environment gate (LLMFOREMAN_RUN_LIVE_TESTS=1); the marker only aids
+    # discovery/selection and is not itself the safety mechanism.
+    "live: opt-in test that makes a real, paid external API call",
+]
