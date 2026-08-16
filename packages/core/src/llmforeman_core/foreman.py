@@ -20,7 +20,25 @@ from llmforeman_core.models import TaskPlan
 
 __all__ = [
     "Foreman",
+    "ForemanPlanValidationError",
 ]
+
+
+class ForemanPlanValidationError(Exception):
+    """A generated plan is schema-valid but not a meaningful, consistent plan.
+
+    Raised by concrete :class:`Foreman` implementations when a model returns a
+    structurally well-formed planning result that nonetheless violates a
+    plan-level semantic invariant (for example: an empty plan, duplicate task
+    identifiers, a malformed identifier, a dependency on a task that does not
+    exist, or a task that depends on itself).
+
+    This is a semantic failure of the Foreman planning capability and is
+    deliberately independent of any provider/runtime transport failure: it does
+    not classify transient vs. permanent conditions and carries no provider
+    identity. Provider-layer failures keep their own established error contract
+    and are never translated into this type.
+    """
 
 
 class Foreman(Protocol):

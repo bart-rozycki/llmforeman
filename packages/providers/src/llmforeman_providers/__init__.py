@@ -28,8 +28,10 @@ from llmforeman_providers.errors import (
     ModelProviderTimeoutError,
     ModelProviderTransientError,
 )
+from llmforeman_providers.foreman import AnthropicForeman
 
 __all__ = [
+    "AnthropicForeman",
     "AnthropicMessagesClient",
     "AnthropicProvider",
     "ModelProvider",
