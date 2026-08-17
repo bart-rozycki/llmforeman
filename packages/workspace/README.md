@@ -51,6 +51,20 @@ explicitly named, Git-tracked file* — and does not search, glob, or list:
   never escape the repository root or leak absolute paths. Oversized files fail
   rather than being truncated.
 
+It also defines the typed async contract `RepositoryFileWriter` for writing the
+complete requested textual state of a single, explicitly named repository file
+into a core `RepositoryFile`. This is the first repository *mutation*
+capability and, unlike the Git-tracked reader/searcher, it is deliberately
+Git-independent: it imposes no precondition that the target path already exist
+or be Git-tracked, so a future worker can create new files. The target `path`
+is a logical, repository-relative `str` (kept distinct from the local-machine
+`repository_root` `Path`), empty `content` is a valid request, and no
+normalization is implied. Consistent with the other workspace contracts, this
+declaration defines interface semantics only: there is no concrete
+implementation yet, and no filesystem write, directory creation, atomicity,
+durability, encoding, overwrite, symlink, or path-validation behavior is
+promised by the port. Task #24 will own the concrete, safe write mechanics.
+
 Git subprocesses are invoked without a shell. Invalid caller input raises
 `InvalidRepositoryError`; failures inspecting an otherwise valid repository raise
 `RepositoryInspectionError`; and an explicit file read that cannot be satisfied

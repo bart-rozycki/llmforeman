@@ -6,11 +6,13 @@ satisfy so that typed application code can depend on::
     context = await loader.load(repository_root)
     file = await reader.read(repository_root, path)
     result = await searcher.search(repository_root, query)
+    written = await writer.write(repository_root, path, content)
 
 without knowing how the local repository is inspected, how an individual file
-is retrieved, or how repository text is searched. This module declares interface
-semantics only: it contains no implementation, no filesystem access, no Git or
-subprocess behavior, and no repository scanning.
+is retrieved, how repository text is searched, or how a file's requested state
+is written. This module declares interface semantics only: it contains no
+implementation, no filesystem access, no Git or subprocess behavior, and no
+repository scanning or mutation.
 
 The ``repository_root`` is a local-machine ``pathlib.Path``. It belongs at this
 infrastructure boundary precisely because ``core`` (and its
@@ -30,6 +32,7 @@ from llmforeman_workspace.search import RepositorySearchResult
 __all__ = [
     "RepositoryContextLoader",
     "RepositoryFileReader",
+    "RepositoryFileWriter",
     "RepositoryTextSearcher",
 ]
 
@@ -134,5 +137,70 @@ class RepositoryTextSearcher(Protocol):
         no search behavior; it does not access the filesystem, validate
         ``query``, or bound the number of results. Finding nothing is a valid,
         non-error outcome represented by an empty ``RepositorySearchResult``.
+        """
+        ...
+
+
+class RepositoryFileWriter(Protocol):
+    """Typed, async contract for writing one repository file's requested state.
+
+    A structural interface that a concrete local workspace writer satisfies. It
+    is the first repository *mutation* capability, the write-side complement to
+    ``RepositoryFileReader``: where the reader retrieves one explicitly named
+    file, this writer records the complete textual state the caller wants stored
+    at one explicitly named file. It is stateless and holds no configuration,
+    overwrite/create policy, parent-directory policy, encoding policy, size
+    limit, backup/rollback behavior, caching, or lifecycle hooks. It exists only
+    so typed application code can depend on ``await writer.write(repository_root,
+    path, content)``.
+
+    Crucially, and unlike the concrete Git-tracked reader/searcher, this generic
+    capability is Git-independent: it imposes no precondition that the target
+    path already exist or already be tracked by Git, so a future worker may use
+    it to create new files (for example ``packages/foo/tests/test_new.py``).
+    Whether a concrete writer creates new files, overwrites existing ones,
+    creates parent directories, or handles tracked/untracked paths is an
+    implementation decision, not part of this contract.
+
+    This declares interface semantics only. It performs no filesystem or Git
+    access, no path validation, and no encoding, size, containment, atomicity,
+    or durability policy; those runtime semantics belong to a future concrete
+    implementation.
+    """
+
+    async def write(
+        self,
+        repository_root: Path,
+        path: str,
+        content: str,
+    ) -> RepositoryFile:
+        """Write ``content`` as the complete state of one repository file.
+
+        ``repository_root`` is a local-machine ``pathlib.Path``. ``path`` is a
+        logical, repository-relative file identifier (for example
+        ``"packages/foo/tests/test_new_feature.py"``); it is expected to be
+        repository-relative, and it is intentionally kept as a ``str`` rather
+        than a filesystem ``Path`` because it ultimately becomes
+        ``RepositoryFile.path`` and to keep absolute machine paths out of
+        normalized repository data. ``content`` is the exact, complete text the
+        caller wants stored at ``path``; empty content (``""``) is a valid
+        request, and the contract implies no whitespace, line-ending,
+        indentation, or encoding normalization.
+
+        Precondition: ``path`` must be repository-relative. This is a documented
+        precondition only; a ``Protocol`` cannot enforce it at runtime, so a
+        future concrete implementation must reject absolute paths, parent
+        traversal, and symlink/root escapes before writing rather than relying
+        on this declaration. The contract intentionally does not require the
+        target file to already exist or to be Git-tracked.
+
+        Asynchronous from day one because real implementations will involve
+        local filesystem I/O, Git/subprocess operations, and orchestration
+        concurrency. This declaration defines the contract only and implements
+        no writing behavior; it does not access the filesystem, resolve or
+        validate ``path``, create parent directories, or make any atomicity,
+        durability, permission, or backup/rollback promise. On successful
+        completion the returned core ``RepositoryFile`` semantically represents
+        the requested written state: ``path`` and ``content`` as requested.
         """
         ...

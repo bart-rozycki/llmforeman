@@ -13,8 +13,10 @@ concrete Git-backed implementation ``GitRepositoryFileReader``, the typed async
 ``RepositoryTextSearcher`` contract for plain-text repository search together
 with its workspace-owned ``RepositorySearchMatch``/``RepositorySearchResult``
 result models and the concrete ripgrep-backed, Git-tracked-only
-``RipgrepRepositoryTextSearcher``, and the small workspace error hierarchy those
-implementations raise.
+``RipgrepRepositoryTextSearcher``, the typed async ``RepositoryFileWriter``
+contract for writing one repository file's requested state (a Git-independent
+mutation capability with no concrete implementation yet), and the small
+workspace error hierarchy those implementations raise.
 """
 
 from importlib.metadata import version
@@ -22,6 +24,7 @@ from importlib.metadata import version
 from llmforeman_workspace.contracts import (
     RepositoryContextLoader,
     RepositoryFileReader,
+    RepositoryFileWriter,
     RepositoryTextSearcher,
 )
 from llmforeman_workspace.errors import (
@@ -46,6 +49,7 @@ __all__ = [
     "RepositoryContextLoader",
     "RepositoryFileAccessError",
     "RepositoryFileReader",
+    "RepositoryFileWriter",
     "RepositoryInspectionError",
     "RepositorySearchError",
     "RepositorySearchMatch",
