@@ -97,6 +97,48 @@ def _validate_repository_relative_path(value: str) -> str:
     return value
 
 
+def _validate_non_blank_text(value: str) -> str:
+    """Validate that ``value`` is non-blank, safe agent-facing text.
+
+    Core-internal helper shared by every model field carrying a short textual
+    value that must not be blank or contain a NUL byte (e.g. a search query, a
+    finish summary, an error message). Blankness is tested against a trimmed
+    copy only; the original value is returned unchanged so significant
+    leading/trailing whitespace is preserved exactly.
+    """
+
+    if not value.strip():
+        raise ValueError("must not be empty or whitespace-only")
+    if "\x00" in value:
+        raise ValueError("must not contain NUL characters")
+    return value
+
+
+def _validate_command_argv(value: list[str]) -> list[str]:
+    """Validate that ``value`` is a well-formed argv command vector.
+
+    Core-internal helper shared by domain/control and observation models that
+    carry an explicit ``list[str]`` argv (never a shell string). It requires at
+    least one element, rejects empty and NUL-bearing elements, and requires the
+    executable (``argv[0]``) to be non-whitespace. It performs no shell
+    interpretation and grants no authorization; shell metacharacters in later
+    arguments are preserved verbatim as inert data.
+    """
+
+    if not value:
+        raise ValueError("command must contain at least one argv element")
+    for element in value:
+        if "\x00" in element:
+            raise ValueError("command argv elements must not contain NUL characters")
+        if element == "":
+            raise ValueError("command argv elements must not be empty")
+    # Only the executable (argv[0]) must be non-whitespace; later arguments may
+    # legitimately be padded and are preserved exactly.
+    if not value[0].strip():
+        raise ValueError("command executable (argv[0]) must not be whitespace-only")
+    return value
+
+
 class AgentRole(StrEnum):
     """Logical execution role a task may be assigned to.
 

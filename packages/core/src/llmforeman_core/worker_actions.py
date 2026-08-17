@@ -27,7 +27,11 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
 
-from llmforeman_core.models import _validate_repository_relative_path
+from llmforeman_core.models import (
+    _validate_command_argv,
+    _validate_non_blank_text,
+    _validate_repository_relative_path,
+)
 
 __all__ = [
     "FinishAction",
@@ -60,14 +64,10 @@ class SearchAction(BaseModel):
     @field_validator("query")
     @classmethod
     def _validate_query(cls, value: str) -> str:
-        # Trimming is used only to detect a blank query; the original value is
-        # preserved because leading/trailing whitespace may be significant in a
-        # literal text search.
-        if not value.strip():
-            raise ValueError("query must not be empty or whitespace-only")
-        if "\x00" in value:
-            raise ValueError("query must not contain NUL characters")
-        return value
+        # Blankness is only detected against a trimmed copy; the original value
+        # is preserved because leading/trailing whitespace may be significant
+        # in a literal text search.
+        return _validate_non_blank_text(value)
 
 
 class ReadFileAction(BaseModel):
@@ -128,22 +128,7 @@ class RunCommandAction(BaseModel):
     @field_validator("command")
     @classmethod
     def _validate_command(cls, value: list[str]) -> list[str]:
-        if not value:
-            raise ValueError("command must contain at least one argv element")
-        for element in value:
-            if "\x00" in element:
-                raise ValueError(
-                    "command argv elements must not contain NUL characters"
-                )
-            if element == "":
-                raise ValueError("command argv elements must not be empty")
-        # Only the executable (argv[0]) must be non-whitespace; later arguments
-        # may legitimately be padded and are preserved exactly.
-        if not value[0].strip():
-            raise ValueError(
-                "command executable (argv[0]) must not be whitespace-only"
-            )
-        return value
+        return _validate_command_argv(value)
 
 
 class FinishAction(BaseModel):
@@ -163,11 +148,7 @@ class FinishAction(BaseModel):
     @field_validator("summary")
     @classmethod
     def _validate_summary(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("summary must not be empty or whitespace-only")
-        if "\x00" in value:
-            raise ValueError("summary must not contain NUL characters")
-        return value
+        return _validate_non_blank_text(value)
 
 
 # Internal discriminated union over the closed action vocabulary. Pydantic owns
