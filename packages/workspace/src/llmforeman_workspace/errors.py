@@ -16,6 +16,7 @@ never include repository file contents, environment variables, or secrets.
 
 __all__ = [
     "InvalidRepositoryError",
+    "RepositoryFileAccessError",
     "RepositoryInspectionError",
     "WorkspaceError",
 ]
@@ -46,4 +47,21 @@ class RepositoryInspectionError(WorkspaceError):
     such as the Git executable not being launchable, ``git ls-files``
     unexpectedly failing, or tracked path output that cannot be represented
     safely and deterministically in the core string-path contract.
+    """
+
+
+class RepositoryFileAccessError(WorkspaceError):
+    """An explicitly requested repository file could not be safely returned.
+
+    Raised by the on-demand file reader for the ordinary, expected ways a single
+    explicit read can fail once the repository itself is valid: an invalid
+    repository-relative requested path, a path that is not Git-tracked, a tracked
+    file missing from the working tree, a target that is not a regular readable
+    file, a file exceeding the configured size limit, invalid UTF-8, binary-like
+    NUL-containing content, or a symlink that would escape the repository root.
+
+    Unlike best-effort seed gathering (which silently skips unsuitable files),
+    an explicit read that cannot return the requested file surfaces this error.
+    Messages may name the requested repository-relative path but never include
+    file contents, resolved absolute paths, environment variables, or secrets.
     """

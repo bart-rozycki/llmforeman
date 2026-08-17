@@ -11,8 +11,9 @@ with any model, provider, or runtime.
 Design decisions (see the workspace README / package docstring for context):
 
 * Git is the single source of truth for working-tree identity and tracked
-  files. The filesystem is never crawled and ``.git`` is never inspected
-  directly, so linked worktrees (which lack a normal ``.git`` directory) work.
+  files (see the shared ``_git`` primitives). The filesystem is never crawled
+  and ``.git`` is never inspected directly, so linked worktrees (which lack a
+  normal ``.git`` directory) work.
 * The effective repository root is Git's reported top-level working-tree
   directory, so an in-worktree subdirectory canonicalizes correctly.
 * Git subprocesses are invoked through an argv API with ``shell=False``; the
@@ -25,14 +26,13 @@ Design decisions (see the workspace README / package docstring for context):
 """
 
 import asyncio
-import os
 from pathlib import Path
 from typing import Final
 
 from llmforeman_core import RepositoryContext, RepositoryFile
-from llmforeman_workspace.errors import (
-    InvalidRepositoryError,
-    RepositoryInspectionError,
+from llmforeman_workspace._git import (
+    list_tracked_paths,
+    resolve_worktree_top_level,
 )
 
 __all__ = [
@@ -89,74 +89,14 @@ class GitRepositoryContextLoader:
         discovery, relative-path interpretation, and seed reads.
         """
 
-        if not repository_root.exists():
-            raise InvalidRepositoryError("repository path does not exist")
-        if not repository_root.is_dir():
-            raise InvalidRepositoryError("repository path is not a directory")
-
-        effective_root = await self._resolve_worktree_top_level(repository_root)
-        tracked_paths = await self._list_tracked_paths(effective_root)
+        effective_root = await resolve_worktree_top_level(repository_root)
+        tracked_paths = await list_tracked_paths(effective_root)
 
         sorted_tracked = sorted(tracked_paths)
         file_tree = "\n".join(sorted_tracked)
         files = await self._read_seed_files(effective_root, set(sorted_tracked))
 
         return RepositoryContext(file_tree=file_tree, files=files)
-
-    async def _resolve_worktree_top_level(self, repository_root: Path) -> Path:
-        """Resolve the Git working-tree top-level, or raise on invalid input.
-
-        A failure to *launch* Git is an inspection failure; Git reporting that
-        the directory is not part of a working tree (including bare repositories)
-        is invalid caller input.
-        """
-
-        returncode, stdout, stderr = await self._run_git(
-            repository_root, ("rev-parse", "--show-toplevel")
-        )
-        if returncode != 0:
-            raise InvalidRepositoryError(
-                "path is not inside a Git working tree"
-                + _sanitized_git_detail(stderr)
-            )
-
-        raw = stdout.rstrip(b"\n")
-        if not raw:
-            # Bare repositories yield no top-level working tree.
-            raise InvalidRepositoryError("path has no Git working tree")
-
-        # Use the filesystem's own decoding for the top-level path; then
-        # canonicalize so later containment checks compare resolved paths.
-        return Path(os.fsdecode(raw)).resolve()
-
-    async def _list_tracked_paths(self, effective_root: Path) -> list[str]:
-        """Return tracked repository-relative paths via ``git ls-files -z``.
-
-        Only index/tracked paths are requested (no untracked, ignored, or
-        submodule recursion). Output is NUL-delimited and split on NUL. Each
-        path is decoded strictly as UTF-8; a path that cannot be represented
-        safely fails inspection rather than being silently mangled.
-        """
-
-        returncode, stdout, stderr = await self._run_git(
-            effective_root, ("ls-files", "--cached", "--full-name", "-z")
-        )
-        if returncode != 0:
-            raise RepositoryInspectionError(
-                "failed to list tracked files" + _sanitized_git_detail(stderr)
-            )
-
-        paths: list[str] = []
-        for chunk in stdout.split(b"\x00"):
-            if not chunk:
-                continue
-            try:
-                paths.append(chunk.decode("utf-8"))
-            except UnicodeDecodeError as original:
-                raise RepositoryInspectionError(
-                    "a tracked path could not be decoded as UTF-8"
-                ) from original
-        return paths
 
     async def _read_seed_files(
         self,
@@ -237,51 +177,3 @@ class GitRepositoryContextLoader:
             # Missing/deleted, permission denied, non-readable special file,
             # or a race after the ``is_file`` check: skip this optional seed.
             return None
-
-    async def _run_git(
-        self,
-        cwd: Path,
-        args: tuple[str, ...],
-    ) -> tuple[int, bytes, bytes]:
-        """Run ``git -C <cwd> <args...>`` without a shell and collect output.
-
-        The repository path is passed as a single argv element via ``-C`` and is
-        never interpolated into a shell command. A failure to launch Git is
-        normalized to :class:`RepositoryInspectionError` with preserved
-        causality.
-        """
-
-        argv = ("git", "-C", str(cwd), *args)
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *argv,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-        except OSError as original:
-            raise RepositoryInspectionError(
-                "unable to launch the git executable"
-            ) from original
-
-        stdout, stderr = await process.communicate()
-        returncode = process.returncode
-        # ``communicate`` on an awaited, finished process yields a concrete code.
-        assert returncode is not None
-        return returncode, stdout, stderr
-
-
-def _sanitized_git_detail(stderr: bytes) -> str:
-    """Return a short, sanitized single-line Git diagnostic suffix, if any.
-
-    Includes only Git's own concise error text (never file contents, env vars,
-    or secrets) to aid diagnosis; returns an empty string when nothing usable
-    is present.
-    """
-
-    text = stderr.decode("utf-8", errors="replace").strip()
-    if not text:
-        return ""
-    first_line = text.splitlines()[0].strip()
-    if not first_line:
-        return ""
-    return f": {first_line}"

@@ -27,6 +27,32 @@ Git-backed implementation `GitRepositoryContextLoader`.
   symlink-containment checks that never escape the repository root or leak
   absolute paths.
 
+It also defines the typed async contract `RepositoryFileReader` for reading a
+single, explicitly named file into a core `RepositoryFile`, together with its
+concrete Git-backed implementation `GitRepositoryFileReader`.
+
+`GitRepositoryFileReader` provides one safe, on-demand primitive — *read this
+explicitly named, Git-tracked file* — and does not search, glob, or list:
+
+- The effective repository top-level is resolved through Git (as with the
+  loader), so subdirectory entry points and linked worktrees work.
+- The caller-supplied logical path is validated as repository-relative (no
+  empty/whitespace, NUL, absolute POSIX/Windows, or `..` traversal) *before* any
+  filesystem access; unsafe paths are rejected, never rewritten.
+- Only paths present in Git's exact tracked/index set are eligible: filesystem
+  existence is not permission to read, so a guessed but untracked `.env` fails
+  without its contents being opened. Membership is an exact set check against the
+  NUL-delimited tracked listing, so caller-controlled Git pathspec magic never
+  applies. Force-added ignored files are eligible because Git tracks them.
+- Content comes from the current working tree (locally modified tracked files
+  are visible), read through a bounded operation on a worker thread with a
+  configurable byte limit (`max_file_bytes`, default 1 MiB), strict UTF-8
+  decoding, a minimal NUL-byte binary guard, and symlink-containment checks that
+  never escape the repository root or leak absolute paths. Oversized files fail
+  rather than being truncated.
+
 Git subprocesses are invoked without a shell. Invalid caller input raises
 `InvalidRepositoryError`; failures inspecting an otherwise valid repository raise
-`RepositoryInspectionError` (both subclasses of `WorkspaceError`).
+`RepositoryInspectionError`; and an explicit file read that cannot be satisfied
+(invalid path, untracked path, missing/oversized/non-text/escaping file) raises
+`RepositoryFileAccessError` (all subclasses of `WorkspaceError`).
