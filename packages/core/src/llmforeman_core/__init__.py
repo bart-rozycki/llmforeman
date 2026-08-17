@@ -19,18 +19,32 @@ from llmforeman_core.models import (
     TaskStatus,
     can_transition,
 )
+from llmforeman_core.worker_actions import (
+    FinishAction,
+    ReadFileAction,
+    RunCommandAction,
+    SearchAction,
+    WorkerAction,
+    WriteFileAction,
+)
 
 __all__ = [
     "AgentRole",
+    "FinishAction",
     "Foreman",
     "ForemanPlanValidationError",
     "ModelUsage",
+    "ReadFileAction",
     "RepositoryContext",
     "RepositoryFile",
     "Run",
+    "RunCommandAction",
+    "SearchAction",
     "Task",
     "TaskPlan",
     "TaskStatus",
+    "WorkerAction",
+    "WriteFileAction",
     "__version__",
     "can_transition",
 ]

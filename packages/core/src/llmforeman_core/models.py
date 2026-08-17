@@ -70,6 +70,33 @@ def can_transition(current: TaskStatus, target: TaskStatus) -> bool:
     return target in _LEGAL_TRANSITIONS[current]
 
 
+def _validate_repository_relative_path(value: str) -> str:
+    """Validate that ``value`` is a safe repository-relative logical path.
+
+    Core-internal, filesystem-free privacy invariant shared by all domain
+    models that carry a repository-relative path. Rejects blank, NUL-bearing,
+    absolute (POSIX or Windows), and parent-traversal paths without touching
+    the filesystem, resolving against a working directory, or checking
+    existence. Valid paths are returned unchanged.
+    """
+
+    if not value.strip():
+        raise ValueError("path must not be empty or whitespace-only")
+    if "\x00" in value:
+        raise ValueError("path must not contain NUL characters")
+    # Cross-platform, filesystem-free absolute-path detection. Parse the
+    # value as both POSIX and Windows pure paths so an absolute path is
+    # rejected regardless of which OS runs this code.
+    if PurePosixPath(value).is_absolute() or PureWindowsPath(value).is_absolute():
+        raise ValueError("path must be repository-relative, not absolute")
+    # Reject parent traversal in either separator convention without
+    # resolving the path against the filesystem or the working directory.
+    parts = PurePosixPath(value).parts + PureWindowsPath(value).parts
+    if ".." in parts:
+        raise ValueError("path must not contain parent traversal segments ('..')")
+    return value
+
+
 class AgentRole(StrEnum):
     """Logical execution role a task may be assigned to.
 
@@ -158,22 +185,8 @@ class RepositoryFile(BaseModel):
 
     @field_validator("path")
     @classmethod
-    def _validate_repository_relative_path(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("path must not be empty or whitespace-only")
-        if "\x00" in value:
-            raise ValueError("path must not contain NUL characters")
-        # Cross-platform, filesystem-free absolute-path detection. Parse the
-        # value as both POSIX and Windows pure paths so an absolute path is
-        # rejected regardless of which OS runs this code.
-        if PurePosixPath(value).is_absolute() or PureWindowsPath(value).is_absolute():
-            raise ValueError("path must be repository-relative, not absolute")
-        # Reject parent traversal in either separator convention without
-        # resolving the path against the filesystem or the working directory.
-        parts = PurePosixPath(value).parts + PureWindowsPath(value).parts
-        if ".." in parts:
-            raise ValueError("path must not contain parent traversal segments ('..')")
-        return value
+    def _validate_path(cls, value: str) -> str:
+        return _validate_repository_relative_path(value)
 
 
 class RepositoryContext(BaseModel):
