@@ -4,7 +4,7 @@ version = "0.0.0"
 description = "LLMForeman local coding workspace infrastructure boundary (Git-backed repository context loading)."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = ["llmforeman-core"]
+dependencies = ["llmforeman-core", "pydantic>=2.7"]
 
 [build-system]
 requires = ["hatchling"]

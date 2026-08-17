@@ -5,28 +5,32 @@ satisfy so that typed application code can depend on::
 
     context = await loader.load(repository_root)
     file = await reader.read(repository_root, path)
+    result = await searcher.search(repository_root, query)
 
-without knowing how the local repository is inspected or how an individual file
-is retrieved. This module declares interface semantics only: it contains no
-implementation, no filesystem access, no Git or subprocess behavior, and no
-repository scanning.
+without knowing how the local repository is inspected, how an individual file
+is retrieved, or how repository text is searched. This module declares interface
+semantics only: it contains no implementation, no filesystem access, no Git or
+subprocess behavior, and no repository scanning.
 
 The ``repository_root`` is a local-machine ``pathlib.Path``. It belongs at this
 infrastructure boundary precisely because ``core`` (and its
 ``RepositoryContext``/``RepositoryFile``) is deliberately unaware of local
-checkout locations, absolute paths, or the current working directory. Results
-remain the core models: this boundary translates a local repository into the
-normalized, provider- and runtime-agnostic core model.
+checkout locations, absolute paths, or the current working directory. The
+context/file results remain the core models, while text-search results are the
+workspace-owned ``RepositorySearchResult``: this boundary translates a local
+repository into normalized, provider- and runtime-agnostic data.
 """
 
 from pathlib import Path
 from typing import Protocol
 
 from llmforeman_core import RepositoryContext, RepositoryFile
+from llmforeman_workspace.search import RepositorySearchResult
 
 __all__ = [
     "RepositoryContextLoader",
     "RepositoryFileReader",
+    "RepositoryTextSearcher",
 ]
 
 
@@ -82,5 +86,53 @@ class RepositoryFileReader(Protocol):
         concurrency. This declaration defines the contract only and implements
         no reading behavior; it does not access the filesystem, resolve or
         validate ``path``, or verify that the file exists or is tracked.
+        """
+        ...
+
+
+class RepositoryTextSearcher(Protocol):
+    """Typed, async contract for plain-text repository search.
+
+    A structural interface that a concrete local workspace searcher satisfies.
+    It is the third, independent repository-exploration capability alongside
+    ``RepositoryContextLoader`` (initial lightweight snapshot) and
+    ``RepositoryFileReader`` (read one explicitly known file): it answers
+    "where does this text occur?" when the caller does not yet know the file.
+    It is stateless and holds no configuration, ignore rules, token budget,
+    caching, result limit, or lifecycle hooks. It exists only so typed
+    application code can depend on ``await searcher.search(repository_root,
+    query)``.
+
+    This declares interface semantics only. It performs no filesystem, Git,
+    ripgrep, or subprocess access, no directory traversal, and no query
+    validation; how a query string is mapped onto a search engine, whether only
+    Git-tracked files are searched, result ordering, and any output bound all
+    belong to a future concrete implementation.
+    """
+
+    async def search(
+        self,
+        repository_root: Path,
+        query: str,
+    ) -> RepositorySearchResult:
+        """Search a local repository for a plain-text ``query``.
+
+        ``repository_root`` is a local-machine ``pathlib.Path``. ``query`` is a
+        plain (literal) text search string, kept as a ``str`` and carrying no
+        regex, case-sensitivity, glob, file-filter, whole-word, or
+        context-line semantics at this contract level.
+
+        Precondition: ``query`` must contain meaningful, non-whitespace content
+        (``""``, ``"   "``, and ``"\t\n"`` are conceptually invalid). This is a
+        documented precondition only; a ``Protocol`` cannot enforce it at
+        runtime, so a future concrete implementation must reject a blank query
+        before starting a search rather than relying on this declaration.
+
+        Asynchronous from day one because real implementations will involve
+        local filesystem I/O, Git/subprocess operations, and orchestration
+        concurrency. This declaration defines the contract only and implements
+        no search behavior; it does not access the filesystem, validate
+        ``query``, or bound the number of results. Finding nothing is a valid,
+        non-error outcome represented by an empty ``RepositorySearchResult``.
         """
         ...

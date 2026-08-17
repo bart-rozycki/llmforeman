@@ -444,10 +444,14 @@ version = "0.0.0"
 source = { editable = "packages/workspace" }
 dependencies = [
     { name = "llmforeman-core" },
+    { name = "pydantic" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "llmforeman-core", editable = "packages/core" }]
+requires-dist = [
+    { name = "llmforeman-core", editable = "packages/core" },
+    { name = "pydantic", specifier = ">=2.7" },
+]
 
 [[package]]
 name = "mypy"
