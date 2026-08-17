@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Protocol
 
 from llmforeman_core import RepositoryContext, RepositoryFile
+from llmforeman_workspace.command import CommandResult
 from llmforeman_workspace.search import RepositorySearchResult
 
 __all__ = [
@@ -34,6 +35,7 @@ __all__ = [
     "RepositoryFileReader",
     "RepositoryFileWriter",
     "RepositoryTextSearcher",
+    "WorkspaceCommandRunner",
 ]
 
 
@@ -202,5 +204,67 @@ class RepositoryFileWriter(Protocol):
         durability, permission, or backup/rollback promise. On successful
         completion the returned core ``RepositoryFile`` semantically represents
         the requested written state: ``path`` and ``content`` as requested.
+        """
+        ...
+
+
+class WorkspaceCommandRunner(Protocol):
+    """Typed, async contract for running one argv command in a workspace.
+
+    A structural interface that a concrete local workspace command runner
+    satisfies. It is the independent "verify / execute development commands"
+    capability alongside repository understanding
+    (``RepositoryContextLoader``), finding code (``RepositoryTextSearcher``),
+    inspecting code (``RepositoryFileReader``), and modifying code
+    (``RepositoryFileWriter``). It is stateless and holds no configuration,
+    shell, environment, working-directory override, timeout, streaming,
+    output-limit, cancellation, allowlist, or sandbox policy. It exists only so
+    typed application code can depend on ``await runner.run(repository_root,
+    command)``.
+
+    The public API accepts an explicit argv ``list[str]``, never a shell command
+    string, so a future concrete implementation can use safe exec-style
+    subprocess semantics without shell parsing. There is deliberately no
+    ``str`` alternative and no ``str | list[str]`` overload.
+
+    This declares interface semantics only. It performs no subprocess, shell,
+    filesystem, or Git access, launches no process, and interprets no output; a
+    future concrete implementation owns all runtime behavior, including how
+    ``repository_root`` maps to the process working directory, which binaries
+    may run, the inherited environment, timeouts, output bounds, cancellation,
+    and any error hierarchy for failures such as a process that cannot be
+    started.
+    """
+
+    async def run(
+        self,
+        repository_root: Path,
+        command: list[str],
+    ) -> CommandResult:
+        """Run one argv ``command`` to completion in a local workspace.
+
+        ``repository_root`` is a local-machine ``pathlib.Path`` identifying the
+        workspace/repository entry point, consistent with the other local
+        workspace capabilities. ``command`` is an explicit argv list where
+        ``command[0]`` is the executable and ``command[1:]`` are its arguments
+        (for example ``["uv", "run", "pytest", "packages/core"]``). It is never
+        a shell command string; pipes, redirection, ``&&``, ``||``, and shell,
+        variable, or glob expansion have no special meaning at this contract
+        level, and any such strings in argv are ordinary argument values.
+
+        Precondition: ``command`` must contain at least one executable argv
+        element. This is a documented precondition only; a ``Protocol`` cannot
+        enforce it at runtime, so a future concrete implementation must reject
+        an empty (or otherwise unusable) argv before spawning a process rather
+        than relying on this declaration.
+
+        Asynchronous from day one because real process execution is inherently
+        long-running/blocking. This declaration defines the contract only and
+        implements no execution behavior; it spawns no process and neither
+        validates ``repository_root`` nor ``command``. A command that runs to
+        completion and exits with a non-zero code is a normal, non-error
+        outcome represented by a ``CommandResult``; exceptions are reserved for
+        a future implementation's execution-infrastructure failures (for
+        example a process that could not be started).
         """
         ...

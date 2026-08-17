@@ -17,17 +17,21 @@ result models and the concrete ripgrep-backed, Git-tracked-only
 contract for writing one repository file's requested state together with its
 concrete Git-bounded implementation ``GitRepositoryFileWriter`` (a
 Git-independent mutation capability that overwrites tracked/untracked files and
-creates new untracked files within the effective working tree), and the small
-workspace error hierarchy those implementations raise.
+creates new untracked files within the effective working tree), the typed async
+``WorkspaceCommandRunner`` contract for running one explicit argv command in a
+workspace together with its workspace-owned ``CommandResult`` result model, and
+the small workspace error hierarchy those implementations raise.
 """
 
 from importlib.metadata import version
 
+from llmforeman_workspace.command import CommandResult
 from llmforeman_workspace.contracts import (
     RepositoryContextLoader,
     RepositoryFileReader,
     RepositoryFileWriter,
     RepositoryTextSearcher,
+    WorkspaceCommandRunner,
 )
 from llmforeman_workspace.errors import (
     InvalidRepositoryError,
@@ -47,6 +51,7 @@ from llmforeman_workspace.search import (
 )
 
 __all__ = [
+    "CommandResult",
     "GitRepositoryContextLoader",
     "GitRepositoryFileReader",
     "GitRepositoryFileWriter",
@@ -62,6 +67,7 @@ __all__ = [
     "RepositorySearchResult",
     "RepositoryTextSearcher",
     "RipgrepRepositoryTextSearcher",
+    "WorkspaceCommandRunner",
     "WorkspaceError",
     "__version__",
 ]

@@ -90,6 +90,35 @@ atomic and makes no durability, rollback, or backup promise in v0.1 (no temp
 file, `os.replace`, or fsync). The required guarantee here is symlink/path
 traversal safety, which is distinct from atomic content replacement.
 
+It also defines the typed async contract `WorkspaceCommandRunner` for running a
+single command in a workspace, together with its workspace-owned `CommandResult`
+result model. This is the "verify / execute development commands" capability
+that complements repository understanding, search, reading, and writing; the
+capabilities stay independent and are not aggregated into a generic workspace
+object.
+
+This task is contract-only: there is no concrete runner and no process is ever
+spawned.
+
+- The command is an explicit argv `list[str]` (`command[0]` is the executable,
+  `command[1:]` its arguments), never a shell command string. There is no
+  `str | list[str]` overload and no shell/pipe/redirection/expansion semantics at
+  the contract level; tokens such as `|`, `>`, `&&`, or `$HOME` are ordinary argv
+  values. This establishes safe exec-style semantics for a future concrete runner.
+- A non-empty command (at least one executable argv element) is a documented
+  precondition. The async `Protocol` performs no runtime validation; the
+  structural invariant is enforced instead by the `CommandResult` model.
+- `CommandResult` holds exactly `command`, `exit_code`, `stdout`, and `stderr`.
+  Argv order/contents are preserved verbatim (no joining, quoting, trimming, or
+  reordering); the model rejects an empty command and empty-string argv entries
+  while leaving whitespace-only arguments valid. A non-zero `exit_code` is a
+  normal result (never an exception), negative exit codes remain valid, and
+  `stdout`/`stderr` may each be empty and are kept separate (never merged).
+
+Deferred to a future concrete implementation: process spawning, working
+directory, environment, stdin, timeout, streaming, output limits, cancellation,
+allowlisting, sandboxing, and any execution-error hierarchy.
+
 Git subprocesses are invoked without a shell. Invalid caller input raises
 `InvalidRepositoryError`; failures inspecting an otherwise valid repository raise
 `RepositoryInspectionError`; an explicit file read that cannot be satisfied
