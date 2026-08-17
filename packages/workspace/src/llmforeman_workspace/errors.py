@@ -18,6 +18,7 @@ __all__ = [
     "InvalidRepositoryError",
     "RepositoryFileAccessError",
     "RepositoryInspectionError",
+    "RepositorySearchError",
     "WorkspaceError",
 ]
 
@@ -64,4 +65,26 @@ class RepositoryFileAccessError(WorkspaceError):
     an explicit read that cannot return the requested file surfaces this error.
     Messages may name the requested repository-relative path but never include
     file contents, resolved absolute paths, environment variables, or secrets.
+    """
+
+
+class RepositorySearchError(WorkspaceError):
+    """A repository text search could not be executed or trusted to completion.
+
+    Raised by the concrete ripgrep-backed searcher for search-layer failures
+    that occur *after* a valid working tree has been resolved: a blank or
+    NUL-containing query that cannot be searched meaningfully, an inability to
+    launch the ``rg`` executable, a non-success ripgrep execution status,
+    malformed or structurally unusable ripgrep JSON output, a reported match
+    path outside the exact approved tracked-candidate set, or a single tracked
+    path too large to pass safely within the subprocess argument budget.
+
+    It is deliberately distinct from :class:`InvalidRepositoryError` (invalid
+    caller repository input) and :class:`RepositoryInspectionError` (Git
+    inspection failure): those are never rewrapped into this error, so callers
+    retain the distinction between an invalid workspace, a Git inspection
+    failure, and a text-search failure. A search that runs successfully and
+    finds nothing is *not* an error; it is an empty ``RepositorySearchResult``.
+    Messages never include repository file contents, resolved absolute paths,
+    environment variables, or secrets.
     """
