@@ -53,20 +53,48 @@ explicitly named, Git-tracked file* — and does not search, glob, or list:
 
 It also defines the typed async contract `RepositoryFileWriter` for writing the
 complete requested textual state of a single, explicitly named repository file
-into a core `RepositoryFile`. This is the first repository *mutation*
-capability and, unlike the Git-tracked reader/searcher, it is deliberately
-Git-independent: it imposes no precondition that the target path already exist
-or be Git-tracked, so a future worker can create new files. The target `path`
-is a logical, repository-relative `str` (kept distinct from the local-machine
-`repository_root` `Path`), empty `content` is a valid request, and no
-normalization is implied. Consistent with the other workspace contracts, this
-declaration defines interface semantics only: there is no concrete
-implementation yet, and no filesystem write, directory creation, atomicity,
-durability, encoding, overwrite, symlink, or path-validation behavior is
-promised by the port. Task #24 will own the concrete, safe write mechanics.
+into a core `RepositoryFile`, together with its concrete Git-bounded
+implementation `GitRepositoryFileWriter`.
+
+`GitRepositoryFileWriter` is the first repository *mutation* primitive. Unlike
+the Git-tracked reader/searcher, it is deliberately **not** tracked-only: Git is
+used only to establish the working-tree boundary, so the writer can overwrite
+tracked *and* untracked files and create new untracked files. It never runs
+`git add` or otherwise mutates the Git index/status:
+
+- The effective repository top-level is resolved through Git (as with the reader),
+  so subdirectory entry points and linked worktrees write inside the correct
+  effective working tree; the logical `path` is always relative to that top-level.
+- The logical `path` is validated as repository-relative (no empty/whitespace,
+  NUL, absolute POSIX/Windows, or `..` traversal), and `content` is strictly
+  UTF-8 encoded and size-checked against a configurable byte limit
+  (`max_file_bytes`, default 1 MiB), all *before* any filesystem mutation, so an
+  unsafe path, non-encodable content, or oversized request never creates,
+  truncates, or opens anything.
+- Path traversal uses descriptor-relative, no-follow (`O_NOFOLLOW`/`O_DIRECTORY`)
+  operations rooted at an opened handle on the effective top-level, so no symlink
+  component — parent or final target, internal or external — is ever followed for
+  writing, and symlink safety is enforced at the filesystem operation rather than
+  by a race-prone check-then-open. Missing parent directories may be created
+  relative to a trusted handle.
+- An existing target is opened no-follow, verified to be a regular file, and its
+  current contents streamed and validated as UTF-8 text (rejecting invalid UTF-8
+  or NUL bytes) *before* it is truncated and rewritten in place through the same
+  pinned descriptor, preserving inode and mode bits (an existing executable stays
+  executable). New files receive ordinary non-executable permissions subject to
+  the process umask. Content is written exactly, with no whitespace, newline, or
+  encoding normalization.
+
+The write is a direct in-place truncate+write: it is intentionally **not**
+atomic and makes no durability, rollback, or backup promise in v0.1 (no temp
+file, `os.replace`, or fsync). The required guarantee here is symlink/path
+traversal safety, which is distinct from atomic content replacement.
 
 Git subprocesses are invoked without a shell. Invalid caller input raises
 `InvalidRepositoryError`; failures inspecting an otherwise valid repository raise
-`RepositoryInspectionError`; and an explicit file read that cannot be satisfied
+`RepositoryInspectionError`; an explicit file read that cannot be satisfied
 (invalid path, untracked path, missing/oversized/non-text/escaping file) raises
-`RepositoryFileAccessError` (all subclasses of `WorkspaceError`).
+`RepositoryFileAccessError`; and an explicit file write that cannot be performed
+safely (invalid path, non-encodable/oversized content, symlink component,
+parent conflict, directory/special target, or existing binary/non-text target)
+raises `RepositoryFileWriteError` (all subclasses of `WorkspaceError`).

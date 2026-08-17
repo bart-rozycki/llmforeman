@@ -31,7 +31,7 @@ files), an explicit read that cannot return the requested file raises
 """
 
 import asyncio
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 from typing import Final
 
 from llmforeman_core import RepositoryFile
@@ -39,6 +39,7 @@ from llmforeman_workspace._git import (
     list_tracked_paths,
     resolve_worktree_top_level,
 )
+from llmforeman_workspace._paths import validate_logical_repository_path
 from llmforeman_workspace.errors import RepositoryFileAccessError
 
 __all__ = [
@@ -175,33 +176,10 @@ class GitRepositoryFileReader:
 def _validate_logical_path(path: str) -> None:
     """Reject an unsafe requested path before any filesystem access.
 
-    Semantically compatible with the core ``RepositoryFile.path`` invariant, but
-    raising :class:`RepositoryFileAccessError` at this security boundary so an
-    unsafe path is refused *before* it is used to open a file (rather than only
-    when the eventual model is constructed). Paths are rejected, never rewritten:
-    no leading ``/`` stripping, no ``..`` removal, no absolute-to-relative
-    rewriting, and no resolution against the working directory.
+    Delegates to the shared workspace path validator, raising
+    :class:`RepositoryFileAccessError` at this read boundary so an unsafe path is
+    refused *before* it is used to open a file (rather than only when the
+    eventual model is constructed). Paths are rejected, never rewritten.
     """
 
-    if not path.strip():
-        raise RepositoryFileAccessError(
-            "requested path must not be empty or whitespace-only"
-        )
-    if "\x00" in path:
-        raise RepositoryFileAccessError(
-            "requested path must not contain NUL characters"
-        )
-    # Cross-platform, filesystem-free absolute-path detection. Parse the value
-    # as both POSIX and Windows pure paths so an absolute path is rejected
-    # regardless of which OS runs this code.
-    if PurePosixPath(path).is_absolute() or PureWindowsPath(path).is_absolute():
-        raise RepositoryFileAccessError(
-            f"requested path must be repository-relative, not absolute: {path!r}"
-        )
-    # Reject parent traversal in either separator convention without resolving
-    # the path against the filesystem or the working directory.
-    parts = PurePosixPath(path).parts + PureWindowsPath(path).parts
-    if ".." in parts:
-        raise RepositoryFileAccessError(
-            f"requested path must not contain parent traversal segments: {path!r}"
-        )
+    validate_logical_repository_path(path, RepositoryFileAccessError)

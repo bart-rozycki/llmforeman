@@ -17,6 +17,7 @@ never include repository file contents, environment variables, or secrets.
 __all__ = [
     "InvalidRepositoryError",
     "RepositoryFileAccessError",
+    "RepositoryFileWriteError",
     "RepositoryInspectionError",
     "RepositorySearchError",
     "WorkspaceError",
@@ -65,6 +66,30 @@ class RepositoryFileAccessError(WorkspaceError):
     an explicit read that cannot return the requested file surfaces this error.
     Messages may name the requested repository-relative path but never include
     file contents, resolved absolute paths, environment variables, or secrets.
+    """
+
+
+class RepositoryFileWriteError(WorkspaceError):
+    """A requested repository file write could not be performed safely.
+
+    Raised by the concrete file writer for the ordinary, expected ways a single
+    whole-file write can fail once the repository itself is valid: an invalid
+    repository-relative requested path, content that cannot be encoded as strict
+    UTF-8, requested content exceeding the configured size limit, a symlink
+    encountered as any existing parent component or as the final target, a parent
+    path that is a regular file or other non-directory object, a final target
+    that is a directory or other non-regular object, an existing target whose
+    current contents are not valid UTF-8 text (invalid encoding or NUL bytes),
+    and permission/filesystem failures encountered during the mutation.
+
+    It is deliberately distinct from :class:`InvalidRepositoryError` (invalid
+    caller repository input) and :class:`RepositoryInspectionError` (Git
+    inspection failure): those are never rewrapped into this error, so callers
+    retain the distinction between an invalid workspace, a Git inspection
+    failure, and a write failure. Original causality is preserved via
+    ``raise ... from original`` where a meaningful OS cause exists. Messages may
+    name the requested repository-relative path but never include file contents,
+    resolved absolute paths, environment variables, or secrets.
     """
 
 

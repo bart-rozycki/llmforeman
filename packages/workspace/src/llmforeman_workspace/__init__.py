@@ -14,8 +14,10 @@ concrete Git-backed implementation ``GitRepositoryFileReader``, the typed async
 with its workspace-owned ``RepositorySearchMatch``/``RepositorySearchResult``
 result models and the concrete ripgrep-backed, Git-tracked-only
 ``RipgrepRepositoryTextSearcher``, the typed async ``RepositoryFileWriter``
-contract for writing one repository file's requested state (a Git-independent
-mutation capability with no concrete implementation yet), and the small
+contract for writing one repository file's requested state together with its
+concrete Git-bounded implementation ``GitRepositoryFileWriter`` (a
+Git-independent mutation capability that overwrites tracked/untracked files and
+creates new untracked files within the effective working tree), and the small
 workspace error hierarchy those implementations raise.
 """
 
@@ -30,11 +32,13 @@ from llmforeman_workspace.contracts import (
 from llmforeman_workspace.errors import (
     InvalidRepositoryError,
     RepositoryFileAccessError,
+    RepositoryFileWriteError,
     RepositoryInspectionError,
     RepositorySearchError,
     WorkspaceError,
 )
 from llmforeman_workspace.file_reader import GitRepositoryFileReader
+from llmforeman_workspace.file_writer import GitRepositoryFileWriter
 from llmforeman_workspace.git_loader import GitRepositoryContextLoader
 from llmforeman_workspace.ripgrep_searcher import RipgrepRepositoryTextSearcher
 from llmforeman_workspace.search import (
@@ -45,10 +49,12 @@ from llmforeman_workspace.search import (
 __all__ = [
     "GitRepositoryContextLoader",
     "GitRepositoryFileReader",
+    "GitRepositoryFileWriter",
     "InvalidRepositoryError",
     "RepositoryContextLoader",
     "RepositoryFileAccessError",
     "RepositoryFileReader",
+    "RepositoryFileWriteError",
     "RepositoryFileWriter",
     "RepositoryInspectionError",
     "RepositorySearchError",
