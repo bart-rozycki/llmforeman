@@ -19,6 +19,7 @@ concepts whose failure semantics evolve independently and are not shared.
 __all__ = [
     "ModelRuntimeError",
     "ModelRuntimePermanentError",
+    "ModelRuntimeStructuredOutputError",
     "ModelRuntimeTimeoutError",
     "ModelRuntimeTransientError",
 ]
@@ -38,6 +39,20 @@ class ModelRuntimePermanentError(ModelRuntimeError):
 
     Represents caller/runtime faults such as invalid requests, a missing model,
     and responses that cannot be normalized into the runtime contract.
+    """
+
+
+class ModelRuntimeStructuredOutputError(ModelRuntimePermanentError):
+    """A completed generation whose final output is not usable structured data.
+
+    Raised when a runtime obtained a model response but its final ``response``
+    text is not valid JSON for, or does not validate against, the requested
+    Pydantic output type (including an empty or whitespace-only response). It is
+    a permanent fault for the completed attempt: the model already produced its
+    output, so re-running the same transport call is not a remedy and must not
+    be retried. To avoid surfacing potentially sensitive model output, the raw
+    response is never embedded in the message; the originating validation error
+    is preserved via exception chaining instead.
     """
 
 

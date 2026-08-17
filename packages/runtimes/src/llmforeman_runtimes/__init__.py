@@ -21,6 +21,7 @@ from llmforeman_runtimes.contracts import (
 from llmforeman_runtimes.errors import (
     ModelRuntimeError,
     ModelRuntimePermanentError,
+    ModelRuntimeStructuredOutputError,
     ModelRuntimeTimeoutError,
     ModelRuntimeTransientError,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "ModelRuntime",
     "ModelRuntimeError",
     "ModelRuntimePermanentError",
+    "ModelRuntimeStructuredOutputError",
     "ModelRuntimeTimeoutError",
     "ModelRuntimeTransientError",
     "OllamaGenerateClient",

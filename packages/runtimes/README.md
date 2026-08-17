@@ -7,8 +7,9 @@ Provides the runtime-agnostic generation contract (`RuntimeRequest`,
 `RuntimeResponse`, `ModelRuntime`), an orthogonal structured-output capability
 (`StructuredModelRuntime` and the generic `StructuredRuntimeResponse[T]`), a
 small runtime-independent error hierarchy (`ModelRuntimeError` and its
-permanent/transient/timeout subclasses), and the first concrete adapter,
-`OllamaRuntime`.
+permanent/transient/timeout subclasses, plus the permanent
+`ModelRuntimeStructuredOutputError` for unusable structured output), and the
+first concrete adapter, `OllamaRuntime`.
 
 `ModelRuntime` covers plain text generation; `StructuredModelRuntime` covers
 typed Pydantic output generation. They are separate, orthogonal capabilities:
@@ -24,6 +25,14 @@ server via the official asynchronous `ollama.AsyncClient`. RelPrim is the sole
 owner of retry and timeout semantics for the inference call; the SDK client is
 created without a competing transport timeout. Model and host are runtime-instance
 configuration (default model `qwen3.6:35b-a3b`), never part of `RuntimeRequest`.
+It structurally satisfies both capabilities: `generate` returns plain
+`RuntimeResponse`, while `generate_structured` supplies the requested type's
+`model_json_schema()` as Ollama's `format`, validates only the final `response`
+with Pydantic (ignoring any `thinking`), and returns
+`StructuredRuntimeResponse[T]`. Both paths share the one RelPrim transport
+boundary; structured validation happens after it, so invalid or unusable output
+fails as a non-retryable `ModelRuntimeStructuredOutputError` without triggering
+any hidden regeneration.
 
 A local *runtime* is intentionally distinct from a cloud *provider*
 (`llmforeman-providers`); the two boundaries share no types, error classes, or

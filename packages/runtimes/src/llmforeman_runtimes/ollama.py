@@ -24,6 +24,7 @@ from typing import Any, Protocol, cast
 
 import httpx
 from ollama import AsyncClient, GenerateResponse, ResponseError
+from pydantic import BaseModel, ValidationError
 from relprim import (
     AsyncOperation,
     ExponentialBackoff,
@@ -35,10 +36,15 @@ from relprim import (
 )
 
 from llmforeman_core import ModelUsage
-from llmforeman_runtimes.contracts import RuntimeRequest, RuntimeResponse
+from llmforeman_runtimes.contracts import (
+    RuntimeRequest,
+    RuntimeResponse,
+    StructuredRuntimeResponse,
+)
 from llmforeman_runtimes.errors import (
     ModelRuntimeError,
     ModelRuntimePermanentError,
+    ModelRuntimeStructuredOutputError,
     ModelRuntimeTimeoutError,
     ModelRuntimeTransientError,
 )
@@ -148,12 +154,62 @@ def _normalize_response(response: GenerateResponse) -> RuntimeResponse:
     )
 
 
-class OllamaRuntime:
-    """Ollama implementation of the :class:`ModelRuntime` contract.
+def _validate_structured_output[T: BaseModel](
+    response: GenerateResponse,
+    output_type: type[T],
+) -> T:
+    """Validate the final Ollama ``response`` text as exactly ``output_type``.
 
-    Performs a single asynchronous ``generate`` request per attempt, wrapped by
-    a RelPrim reliability boundary that owns retry and timeout behavior. The
-    adapter holds no per-request mutable state, so ``generate`` is safe for
+    Only the final ``response`` field is parsed; any separate ``thinking``
+    output is ignored and never concatenated. Pydantic is the single source of
+    truth: the text is validated directly with ``model_validate_json`` and no
+    JSON extraction, fence stripping, or repair is attempted. A missing, empty,
+    whitespace-only, syntactically invalid, or schema-violating response is an
+    unusable structured result and becomes a permanent structured-output error
+    that never embeds the raw model output.
+    """
+
+    text = response.response
+    if text is None:
+        raise ModelRuntimeStructuredOutputError(
+            f"Ollama returned no structured output for {output_type.__name__}."
+        )
+    try:
+        return output_type.model_validate_json(text)
+    except ValidationError as exc:
+        raise ModelRuntimeStructuredOutputError(
+            f"Ollama returned invalid structured output for {output_type.__name__}."
+        ) from exc
+
+
+def _normalize_structured_response[T: BaseModel](
+    response: GenerateResponse,
+    output_type: type[T],
+) -> StructuredRuntimeResponse[T]:
+    """Build a :class:`StructuredRuntimeResponse` from an Ollama response.
+
+    Usage is normalized with the exact same helper as plain generation (so a
+    missing required token counter fails identically), and the final response
+    text is validated as ``output_type``. Both failure modes are permanent and
+    occur after the transport reliability boundary, so neither triggers a
+    generation retry, and no partial result is ever returned.
+    """
+
+    usage = _normalize_usage(response)
+    output = _validate_structured_output(response, output_type)
+    return StructuredRuntimeResponse[T](output=output, usage=usage)
+
+
+class OllamaRuntime:
+    """Ollama implementation of the local runtime generation contracts.
+
+    Structurally satisfies both :class:`ModelRuntime` (plain ``generate``) and
+    :class:`StructuredModelRuntime` (typed ``generate_structured``) without
+    either Protocol inheriting from the other. Performs a single asynchronous
+    ``generate`` request per attempt, wrapped by a RelPrim reliability boundary
+    that owns retry and timeout behavior; structured generation reuses that same
+    single boundary and adds only Ollama's schema ``format`` argument. The
+    adapter holds no per-request mutable state, so both methods are safe for
     concurrent use with a client that supports concurrent requests.
     """
 
@@ -216,7 +272,12 @@ class OllamaRuntime:
 
         return AsyncClient(host=host, timeout=None)
 
-    def _build_request_kwargs(self, request: RuntimeRequest) -> dict[str, Any]:
+    def _build_request_kwargs(
+        self,
+        request: RuntimeRequest,
+        *,
+        format_schema: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "model": self._model,
             "prompt": request.prompt,
@@ -224,13 +285,20 @@ class OllamaRuntime:
         }
         if request.system_prompt is not None:
             kwargs["system"] = request.system_prompt
+        # ``format`` is added only for structured generation; plain generation
+        # never sends it, so its request mapping is unchanged. Thinking/sampling
+        # keywords are deliberately still never set for either path.
+        if format_schema is not None:
+            kwargs["format"] = format_schema
         return kwargs
 
     def _resilient_operation(
         self,
         request: RuntimeRequest,
+        *,
+        format_schema: dict[str, Any] | None = None,
     ) -> AsyncOperation[[], GenerateResponse]:
-        request_kwargs = self._build_request_kwargs(request)
+        request_kwargs = self._build_request_kwargs(request, format_schema=format_schema)
 
         async def attempt() -> GenerateResponse:
             try:
@@ -244,8 +312,20 @@ class OllamaRuntime:
             .with_retry(self._retry_policy)
         )
 
-    async def generate(self, request: RuntimeRequest) -> RuntimeResponse:
-        """Generate a response for ``request`` via the Ollama generate API.
+    async def _generate_once(
+        self,
+        request: RuntimeRequest,
+        *,
+        format_schema: dict[str, Any] | None = None,
+    ) -> GenerateResponse:
+        """Run one Ollama generation through the shared reliability boundary.
+
+        Both plain and structured generation route through this single helper so
+        RelPrim remains the one owner of retry and timeout semantics and there
+        is exactly one transport reliability path. Structured generation differs
+        only by supplying ``format_schema``; the returned ``GenerateResponse``
+        is normalized by the caller *after* this boundary, so any structured
+        parsing/validation happens outside the retry loop.
 
         On failure, exposes a normalized runtime error while preserving
         exception chaining for diagnostics. Already-normalized runtime errors
@@ -256,7 +336,9 @@ class OllamaRuntime:
         """
 
         try:
-            result = await self._resilient_operation(request).run()
+            result = await self._resilient_operation(
+                request, format_schema=format_schema
+            ).run()
         except OperationExecutionError as exc:
             cause = exc.cause
             if isinstance(cause, ModelRuntimeError):
@@ -265,7 +347,43 @@ class OllamaRuntime:
                 raise ModelRuntimeTimeoutError("Ollama request timed out.") from cause
             raise ModelRuntimeError("Ollama request failed unexpectedly.") from cause
 
-        return _normalize_response(result.value)
+        # RelPrim ships without a ``py.typed`` marker, so its result value is
+        # seen as ``Any``; the attempt callable fixes it to GenerateResponse.
+        return cast("GenerateResponse", result.value)
+
+    async def generate(self, request: RuntimeRequest) -> RuntimeResponse:
+        """Generate a response for ``request`` via the Ollama generate API.
+
+        Behaviorally unchanged: uses the configured model, maps prompt/system as
+        before, forces ``stream=False``, returns the final ``response`` text as
+        plain content (ignoring ``thinking``), normalizes usage as before, and
+        uses the existing RelPrim reliability/error semantics.
+        """
+
+        response = await self._generate_once(request)
+        return _normalize_response(response)
+
+    async def generate_structured[T: BaseModel](
+        self,
+        request: RuntimeRequest,
+        output_type: type[T],
+    ) -> StructuredRuntimeResponse[T]:
+        """Generate a validated ``output_type`` instance via structured output.
+
+        Reuses the exact plain-generation model/prompt/system mapping and
+        ``stream=False`` transport, adding only Ollama's ``format`` argument set
+        to ``output_type.model_json_schema()`` so the model is constrained to
+        the requested schema. The prompt is never mutated and no schema text is
+        injected into the prompt or system prompt. The single RelPrim transport
+        boundary is shared with plain generation; the final ``response`` text is
+        validated as ``output_type`` *after* that boundary, so an invalid or
+        unusable structured output fails as a permanent
+        :class:`ModelRuntimeStructuredOutputError` and is never retried.
+        """
+
+        schema = output_type.model_json_schema()
+        response = await self._generate_once(request, format_schema=schema)
+        return _normalize_structured_response(response, output_type)
 
     async def aclose(self) -> None:
         """Close the runtime-owned Ollama client, if any.
