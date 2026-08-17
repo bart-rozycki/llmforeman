@@ -15,6 +15,8 @@ from llmforeman_runtimes.contracts import (
     ModelRuntime,
     RuntimeRequest,
     RuntimeResponse,
+    StructuredModelRuntime,
+    StructuredRuntimeResponse,
 )
 from llmforeman_runtimes.errors import (
     ModelRuntimeError,
@@ -34,6 +36,8 @@ __all__ = [
     "OllamaRuntime",
     "RuntimeRequest",
     "RuntimeResponse",
+    "StructuredModelRuntime",
+    "StructuredRuntimeResponse",
     "__version__",
 ]
 

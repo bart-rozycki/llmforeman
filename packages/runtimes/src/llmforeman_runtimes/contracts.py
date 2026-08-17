@@ -26,6 +26,8 @@ __all__ = [
     "ModelRuntime",
     "RuntimeRequest",
     "RuntimeResponse",
+    "StructuredModelRuntime",
+    "StructuredRuntimeResponse",
 ]
 
 
@@ -86,5 +88,54 @@ class ModelRuntime(Protocol):
         involve process/local-server I/O, cancellation, and orchestration
         concurrency. This declaration defines the contract only and implements
         no execution behavior.
+        """
+        ...
+
+
+class StructuredRuntimeResponse[T: BaseModel](BaseModel):
+    """Runtime-independent result of a structured local-generation request.
+
+    Generic over the caller-supplied Pydantic output type ``T`` so that the
+    concrete requested type is preserved statically: requesting ``Foo`` yields a
+    ``StructuredRuntimeResponse[Foo]`` whose ``output`` is a ``Foo``, not a bare
+    ``BaseModel`` or ``dict[str, Any]``. A successful response always carries a
+    fully validated ``output`` and normalized token ``usage``; partial,
+    unparsed, or otherwise invalid results are not representable here. Runtimes
+    that cannot produce a valid result fail through the runtime error boundary
+    instead of returning this type. The raw runtime payload and the JSON Schema
+    derived from ``T`` are adapter implementation details and are intentionally
+    absent from this contract.
+    """
+
+    output: T
+    usage: ModelUsage
+
+
+class StructuredModelRuntime(Protocol):
+    """Typed, async structured local-generation capability.
+
+    An orthogonal structural capability, separate from ``ModelRuntime``: a
+    caller that needs a validated typed result depends on this interface
+    directly rather than probing whether a plain ``ModelRuntime`` happens to
+    support a schema mode. It deliberately does not inherit from ``ModelRuntime``
+    and does not require plain-text ``generate`` support; a concrete adapter may
+    structurally satisfy both contracts. This mirrors the provider-side
+    structured design without sharing its types. This declaration defines
+    semantics only and performs no schema translation, runtime I/O, or JSON
+    parsing.
+    """
+
+    async def generate_structured[T: BaseModel](
+        self,
+        request: RuntimeRequest,
+        output_type: type[T],
+    ) -> StructuredRuntimeResponse[T]:
+        """Generate output conforming to the Pydantic ``output_type``.
+
+        Reuses the existing text-generation ``RuntimeRequest`` for
+        prompt/system input; the distinction from ``generate`` is solely the
+        typed output contract. Returns a response whose ``output`` is a
+        validated instance of ``output_type``, preserving that concrete type
+        statically. Callers supply a Python type, never a raw JSON Schema.
         """
         ...
