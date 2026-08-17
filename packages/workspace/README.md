@@ -97,8 +97,7 @@ that complements repository understanding, search, reading, and writing; the
 capabilities stay independent and are not aggregated into a generic workspace
 object.
 
-This task is contract-only: there is no concrete runner and no process is ever
-spawned.
+The concrete implementation is `SubprocessWorkspaceCommandRunner` (see below).
 
 - The command is an explicit argv `list[str]` (`command[0]` is the executable,
   `command[1:]` its arguments), never a shell command string. There is no
@@ -115,15 +114,49 @@ spawned.
   normal result (never an exception), negative exit codes remain valid, and
   `stdout`/`stderr` may each be empty and are kept separate (never merged).
 
-Deferred to a future concrete implementation: process spawning, working
-directory, environment, stdin, timeout, streaming, output limits, cancellation,
-allowlisting, sandboxing, and any execution-error hierarchy.
+`SubprocessWorkspaceCommandRunner` is the concrete exec-style runner. It runs
+one argv command to completion and returns a `CommandResult`; an ordinary
+non-zero (or negative signal) exit is a normal result, never an exception.
+
+- **Not a sandbox.** It executes the executable supplied by its *trusted*
+  caller: it is not an allowlist, authorization layer, filesystem/network
+  sandbox, container, or command-policy engine, and it can technically run
+  dangerous programs (for example `["rm", ...]` or an arbitrary interpreter) if
+  a trusted caller requests them. The child inherits LLMForeman's process
+  environment and OS permissions. Because of that, this runner must not be
+  exposed directly to an untrusted model before a command-authorization/sandbox
+  policy exists.
+- **No shell, ever.** The command is executed exactly as argv via
+  `asyncio.create_subprocess_exec`; argv is never joined, quoted, or interpreted,
+  so `&&`, `|`, `>`, `*`, `$HOME`, and `;` remain literal arguments. Argv is
+  validated *before* spawning (rejecting an empty command, a whitespace-only
+  executable, empty argv entries, and NUL-containing entries) and snapshotted so
+  later caller mutation cannot change what ran.
+- **Effective Git top-level cwd.** The working directory is the Git working-tree
+  top-level resolved via the shared `_git` helper (subdirectory and linked
+  worktree entry points resolve correctly); the global process cwd is never
+  changed. `stdin` is `DEVNULL` (accidentally interactive commands get EOF), and
+  `stdout`/`stderr` are captured as separate, never-merged pipes and decoded as
+  UTF-8 with replacement (invalid diagnostic bytes do not fail the command).
+- **Bounds and cleanup.** `timeout_seconds` (default 300) bounds the running
+  process; `max_output_bytes` (default 4 MiB) is a hard *per-stream* cap enforced
+  by explicit concurrent bounded draining of both pipes. Each command runs in its
+  own POSIX session (`start_new_session=True`), and timeout, output overflow, and
+  cancellation share one cleanup path that terminates the **whole process group**
+  (SIGTERM, bounded grace, then SIGKILL) and reaps the direct process. Timeout
+  raises `WorkspaceCommandTimeoutError`, output overflow raises
+  `WorkspaceCommandExecutionError`, and cancellation re-raises `CancelledError`
+  only after cleanup completes. No partial `CommandResult` is returned on failure.
 
 Git subprocesses are invoked without a shell. Invalid caller input raises
 `InvalidRepositoryError`; failures inspecting an otherwise valid repository raise
 `RepositoryInspectionError`; an explicit file read that cannot be satisfied
 (invalid path, untracked path, missing/oversized/non-text/escaping file) raises
-`RepositoryFileAccessError`; and an explicit file write that cannot be performed
+`RepositoryFileAccessError`; an explicit file write that cannot be performed
 safely (invalid path, non-encodable/oversized content, symlink component,
 parent conflict, directory/special target, or existing binary/non-text target)
-raises `RepositoryFileWriteError` (all subclasses of `WorkspaceError`).
+raises `RepositoryFileWriteError`; and a command that cannot be executed to a
+trustworthy completion (invalid argv, unstartable executable, output-limit
+overflow, or subprocess/cleanup failure) raises
+`WorkspaceCommandExecutionError`, with `WorkspaceCommandTimeoutError` for the
+configured execution timeout (all subclasses of `WorkspaceError`).

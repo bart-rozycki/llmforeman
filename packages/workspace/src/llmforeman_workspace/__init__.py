@@ -19,8 +19,12 @@ concrete Git-bounded implementation ``GitRepositoryFileWriter`` (a
 Git-independent mutation capability that overwrites tracked/untracked files and
 creates new untracked files within the effective working tree), the typed async
 ``WorkspaceCommandRunner`` contract for running one explicit argv command in a
-workspace together with its workspace-owned ``CommandResult`` result model, and
-the small workspace error hierarchy those implementations raise.
+workspace together with its workspace-owned ``CommandResult`` result model and
+its concrete exec-style implementation ``SubprocessWorkspaceCommandRunner`` (a
+trusted-caller, no-shell subprocess runner that executes at the effective Git
+top-level, inherits the process environment, and is explicitly *not* a sandbox
+or authorization boundary), and the small workspace error hierarchy those
+implementations raise.
 """
 
 from importlib.metadata import version
@@ -39,6 +43,8 @@ from llmforeman_workspace.errors import (
     RepositoryFileWriteError,
     RepositoryInspectionError,
     RepositorySearchError,
+    WorkspaceCommandExecutionError,
+    WorkspaceCommandTimeoutError,
     WorkspaceError,
 )
 from llmforeman_workspace.file_reader import GitRepositoryFileReader
@@ -48,6 +54,9 @@ from llmforeman_workspace.ripgrep_searcher import RipgrepRepositoryTextSearcher
 from llmforeman_workspace.search import (
     RepositorySearchMatch,
     RepositorySearchResult,
+)
+from llmforeman_workspace.subprocess_runner import (
+    SubprocessWorkspaceCommandRunner,
 )
 
 __all__ = [
@@ -67,7 +76,10 @@ __all__ = [
     "RepositorySearchResult",
     "RepositoryTextSearcher",
     "RipgrepRepositoryTextSearcher",
+    "SubprocessWorkspaceCommandRunner",
+    "WorkspaceCommandExecutionError",
     "WorkspaceCommandRunner",
+    "WorkspaceCommandTimeoutError",
     "WorkspaceError",
     "__version__",
 ]

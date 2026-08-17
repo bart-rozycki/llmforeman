@@ -20,6 +20,8 @@ __all__ = [
     "RepositoryFileWriteError",
     "RepositoryInspectionError",
     "RepositorySearchError",
+    "WorkspaceCommandExecutionError",
+    "WorkspaceCommandTimeoutError",
     "WorkspaceError",
 ]
 
@@ -112,4 +114,43 @@ class RepositorySearchError(WorkspaceError):
     finds nothing is *not* an error; it is an empty ``RepositorySearchResult``.
     Messages never include repository file contents, resolved absolute paths,
     environment variables, or secrets.
+    """
+
+
+class WorkspaceCommandExecutionError(WorkspaceError):
+    """A workspace command could not be executed to a trustworthy completion.
+
+    Raised by the concrete subprocess command runner for failures that mean a
+    command did not run to a normal completion whose result can be trusted:
+    invalid command argv (empty command, empty/whitespace-only executable,
+    empty or NUL-containing argv entries), an executable that cannot be started
+    (for example a missing binary), a local subprocess-creation or
+    infrastructure failure, captured output exceeding the configured per-stream
+    limit, and a cleanup failure that prevents a trustworthy result.
+
+    It is deliberately distinct from :class:`InvalidRepositoryError` (invalid
+    caller repository input) and :class:`RepositoryInspectionError` (Git
+    inspection failure): those are never rewrapped into this error, so callers
+    retain the distinction between an invalid workspace, a Git inspection
+    failure, and a command execution failure. Crucially, it is **never** raised
+    for an ordinary non-zero process exit: a command that runs to completion and
+    exits non-zero is a normal :class:`~llmforeman_workspace.command.CommandResult`.
+    Original causality is preserved via ``raise ... from original`` where a
+    meaningful cause exists. Messages may name the executable, the configured
+    timeout, or which stream exceeded its limit, but never include captured
+    output, environment variables, resolved absolute paths, or secrets.
+    """
+
+
+class WorkspaceCommandTimeoutError(WorkspaceCommandExecutionError):
+    """A workspace command exceeded its configured execution timeout.
+
+    Raised specifically when a successfully started subprocess does not complete
+    within the concrete runner's configured ``timeout_seconds``. Before this is
+    raised the runner terminates the whole spawned process group and reaps the
+    direct process, so no orphaned command is left running. A timeout is not a
+    :class:`~llmforeman_workspace.command.CommandResult`: the capability did not
+    complete normally, so no partial or synthetic exit code is returned. It is a
+    subclass of :class:`WorkspaceCommandExecutionError` so callers may catch the
+    broader execution failure or handle a timeout specifically.
     """
