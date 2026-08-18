@@ -277,6 +277,7 @@ class OllamaRuntime:
         request: RuntimeRequest,
         *,
         format_schema: dict[str, Any] | None = None,
+        think: bool | None = None,
     ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "model": self._model,
@@ -286,10 +287,15 @@ class OllamaRuntime:
         if request.system_prompt is not None:
             kwargs["system"] = request.system_prompt
         # ``format`` is added only for structured generation; plain generation
-        # never sends it, so its request mapping is unchanged. Thinking/sampling
-        # keywords are deliberately still never set for either path.
+        # never sends it, so its request mapping is unchanged.
         if format_schema is not None:
             kwargs["format"] = format_schema
+        # ``think`` is sent only when explicitly requested (structured
+        # generation passes ``think=False``); plain generation leaves it
+        # omitted so Ollama/model default thinking semantics are preserved.
+        # Sampling keywords are deliberately still never set for either path.
+        if think is not None:
+            kwargs["think"] = think
         return kwargs
 
     def _resilient_operation(
@@ -297,8 +303,11 @@ class OllamaRuntime:
         request: RuntimeRequest,
         *,
         format_schema: dict[str, Any] | None = None,
+        think: bool | None = None,
     ) -> AsyncOperation[[], GenerateResponse]:
-        request_kwargs = self._build_request_kwargs(request, format_schema=format_schema)
+        request_kwargs = self._build_request_kwargs(
+            request, format_schema=format_schema, think=think
+        )
 
         async def attempt() -> GenerateResponse:
             try:
@@ -317,6 +326,7 @@ class OllamaRuntime:
         request: RuntimeRequest,
         *,
         format_schema: dict[str, Any] | None = None,
+        think: bool | None = None,
     ) -> GenerateResponse:
         """Run one Ollama generation through the shared reliability boundary.
 
@@ -337,7 +347,7 @@ class OllamaRuntime:
 
         try:
             result = await self._resilient_operation(
-                request, format_schema=format_schema
+                request, format_schema=format_schema, think=think
             ).run()
         except OperationExecutionError as exc:
             cause = exc.cause
@@ -373,16 +383,19 @@ class OllamaRuntime:
         Reuses the exact plain-generation model/prompt/system mapping and
         ``stream=False`` transport, adding only Ollama's ``format`` argument set
         to ``output_type.model_json_schema()`` so the model is constrained to
-        the requested schema. The prompt is never mutated and no schema text is
-        injected into the prompt or system prompt. The single RelPrim transport
-        boundary is shared with plain generation; the final ``response`` text is
-        validated as ``output_type`` *after* that boundary, so an invalid or
-        unusable structured output fails as a permanent
+        the requested schema, and ``think=False`` so the final ``response``
+        field carries the structured protocol payload rather than reasoning
+        text (which is never a substitute for, or fallback to, the structured
+        output). The prompt is never mutated and no schema text is injected into
+        the prompt or system prompt. The single RelPrim transport boundary is
+        shared with plain generation; the final ``response`` text is validated
+        as ``output_type`` *after* that boundary, so an invalid or unusable
+        structured output fails as a permanent
         :class:`ModelRuntimeStructuredOutputError` and is never retried.
         """
 
         schema = output_type.model_json_schema()
-        response = await self._generate_once(request, format_schema=schema)
+        response = await self._generate_once(request, format_schema=schema, think=False)
         return _normalize_structured_response(response, output_type)
 
     async def aclose(self) -> None:

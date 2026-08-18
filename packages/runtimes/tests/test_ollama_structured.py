@@ -162,12 +162,35 @@ def test_structured_request_mapping_matches_plain_except_format() -> None:
 
     plain_kwargs = plain_client.calls[0]
     structured_kwargs = structured_client.calls[0]
-    # Structured mapping differs from plain solely by the added ``format`` key.
-    assert set(structured_kwargs) - set(plain_kwargs) == {"format"}
+    # Structured mapping differs from plain solely by the added ``format`` and
+    # ``think`` keys; every shared key maps identically (no prompt rewriting).
+    assert set(structured_kwargs) - set(plain_kwargs) == {"format", "think"}
     assert {k: structured_kwargs[k] for k in plain_kwargs} == plain_kwargs
 
 
-def test_structured_sends_no_thinking_or_sampling_keywords() -> None:
+def test_structured_sends_think_false() -> None:
+    client = FakeClient(returns(generate_response(response=_VALID_JSON)))
+    runtime = _fast_runtime(client)
+
+    run(
+        runtime.generate_structured(
+            RuntimeRequest(
+                prompt="Choose the next action.",
+                system_prompt="System",
+            ),
+            ExampleOutput,
+        )
+    )
+
+    kwargs = client.calls[0]
+    # Structured generation disables thinking so the final ``response`` field
+    # carries the typed protocol payload. Identity check guards against a
+    # truthy non-``False`` value slipping through.
+    assert "think" in kwargs
+    assert kwargs["think"] is False
+
+
+def test_structured_sends_no_sampling_keywords() -> None:
     client = FakeClient(returns(generate_response(response=_VALID_JSON)))
     runtime = _fast_runtime(client)
 
@@ -179,10 +202,9 @@ def test_structured_sends_no_thinking_or_sampling_keywords() -> None:
     )
 
     kwargs = client.calls[0]
-    # Task #28 does not change thinking/sampling configuration for structured
-    # generation; only ``format`` is added relative to plain generation.
+    # Structured generation adds only ``format`` and ``think`` relative to plain
+    # generation; no sampling configuration is introduced.
     for forbidden in (
-        "think",
         "options",
         "temperature",
         "top_p",
