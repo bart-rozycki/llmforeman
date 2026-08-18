@@ -17,4 +17,5 @@ def test_version_matches_distribution_metadata() -> None:
 
 
 def test_entry_point_is_callable_and_returns_zero() -> None:
-    assert llmforeman_cli.main() == 0
+    # With no subcommand the CLI prints help and exits successfully.
+    assert llmforeman_cli.main([]) == 0

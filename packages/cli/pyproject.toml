@@ -1,10 +1,15 @@
 [project]
 name = "llmforeman-cli"
 version = "0.0.0"
-description = "LLMForeman command-line interface boundary (thin entry point; no commands yet)."
+description = "LLMForeman command-line interface (executable composition root for the local coding worker)."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "llmforeman-core",
+    "llmforeman-runtimes",
+    "llmforeman-workspace",
+    "llmforeman-orchestration",
+]
 
 [project.scripts]
 llmforeman = "llmforeman_cli:main"

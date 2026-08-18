@@ -389,6 +389,20 @@ dev = [
 name = "llmforeman-cli"
 version = "0.0.0"
 source = { editable = "packages/cli" }
+dependencies = [
+    { name = "llmforeman-core" },
+    { name = "llmforeman-orchestration" },
+    { name = "llmforeman-runtimes" },
+    { name = "llmforeman-workspace" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "llmforeman-core", editable = "packages/core" },
+    { name = "llmforeman-orchestration", editable = "packages/orchestration" },
+    { name = "llmforeman-runtimes", editable = "packages/runtimes" },
+    { name = "llmforeman-workspace", editable = "packages/workspace" },
+]
 
 [[package]]
 name = "llmforeman-core"

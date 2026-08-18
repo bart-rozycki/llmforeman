@@ -1,23 +1,15 @@
 """LLMForeman command-line interface package.
 
-A thin user-facing entry point into the Python runtime. It must remain an
-interface only and must not become a second backend or implement product
-behavior. No real commands are implemented yet.
+A thin user-facing entry point into the Python runtime. It is an interface and
+executable composition root only; it must not become a second backend or
+reimplement product/domain logic. The concrete ``run`` command composition
+lives in :mod:`llmforeman_cli._cli`.
 """
 
 from importlib.metadata import version
 
+from llmforeman_cli._cli import main
+
 __all__ = ["__version__", "main"]
 
 __version__: str = version("llmforeman-cli")
-
-
-def main() -> int:
-    """Entry point for the ``llmforeman`` console script.
-
-    This is intentionally a no-op placeholder: it only proves the CLI package
-    boundary and console-script wiring. Actual commands are out of scope for
-    the foundational skeleton.
-    """
-    print(f"llmforeman {__version__}: no commands are implemented yet.")
-    return 0

@@ -21,7 +21,7 @@ boundaries:
 | `packages/runtimes`  | runtimes  | Local inference engines. Ollama runtime implemented; MLX, llama.cpp, … planned.                       |
 | `packages/workspace` | workspace | Local coding workspace and repository-context infrastructure (Git repository-context loader).         |
 | `packages/orchestration` | orchestration | Application/composition layer that composes core worker semantics with workspace capabilities. Depends only on `core` and `workspace`. |
-| `packages/cli`       | CLI       | Thin command-line entry point over the Python runtime. Currently a no-op scaffold with no real commands. |
+| `packages/cli`       | CLI       | Thin command-line entry point and executable composition root over the Python runtime. Provides `llmforeman run` to drive the local Ollama-backed coding worker against a repository. |
 | `apps/desktop`       | desktop   | Tauri 2 + React + TypeScript UI shell (narrow native bridge only). No product workflows yet.          |
 
 An important architectural invariant: **`provider != runtime`**. A cloud model
@@ -74,7 +74,5 @@ foundational vertical slices exist today:
 - a Git repository-context loader that produces normalized repository context.
 
 Major product workflow pieces are **not implemented yet**, including end-to-end
-autonomous task execution, local coding-worker execution, repository
-search/exploration and file-editing tools, review loops, scheduling,
-persistence-backed orchestration, the CLI command surface, and the desktop
-product experience.
+autonomous task execution, review loops, scheduling, persistence-backed
+orchestration, and the desktop product experience.
