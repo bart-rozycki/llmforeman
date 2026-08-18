@@ -11,8 +11,11 @@ or the desktop app.
 It exposes the concrete application service :class:`WorkspaceActionExecutor`,
 the authorization seam (:class:`WorkerActionAuthorizer` plus its denial signal
 :class:`WorkerActionDeniedError`) that decides whether a model-generated
-``WorkerAction`` may proceed before it is executed or interpreted, and the first
-bounded local coding-agent loop :class:`LocalCodingWorker` (with its
+``WorkerAction`` may proceed before it is executed or interpreted, the first
+concrete authorization policy :class:`CommandApprovalAuthorizer` (auto-allow
+search/read/write/finish; require explicit per-action approval for every
+``run``), and the first bounded local coding-agent loop
+:class:`LocalCodingWorker` (with its
 :class:`LocalWorkerResult` and :class:`WorkerStepLimitError`) that composes a
 local structured runtime with those capabilities. Composing the runtime here is
 why orchestration now also depends on ``llmforeman-runtimes``.
@@ -20,6 +23,9 @@ why orchestration now also depends on ``llmforeman-runtimes``.
 
 from importlib.metadata import version
 
+from llmforeman_orchestration.command_approval_authorizer import (
+    CommandApprovalAuthorizer,
+)
 from llmforeman_orchestration.local_coding_worker import (
     LocalCodingWorker,
     LocalWorkerResult,
@@ -32,6 +38,7 @@ from llmforeman_orchestration.worker_action_authorization import (
 from llmforeman_orchestration.workspace_action_executor import WorkspaceActionExecutor
 
 __all__ = [
+    "CommandApprovalAuthorizer",
     "LocalCodingWorker",
     "LocalWorkerResult",
     "WorkerActionAuthorizer",
