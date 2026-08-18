@@ -1,0 +1,14 @@
+[project]
+name = "llmforeman-orchestration"
+version = "0.0.0"
+description = "LLMForeman application/composition layer (composes core worker semantics with workspace capabilities)."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = ["llmforeman-core", "llmforeman-workspace"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llmforeman_orchestration"]

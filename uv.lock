@@ -11,6 +11,7 @@ members = [
     "llmforeman",
     "llmforeman-cli",
     "llmforeman-core",
+    "llmforeman-orchestration",
     "llmforeman-providers",
     "llmforeman-runtimes",
     "llmforeman-workspace",
@@ -354,6 +355,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "llmforeman-cli" },
     { name = "llmforeman-core" },
+    { name = "llmforeman-orchestration" },
     { name = "llmforeman-providers" },
     { name = "llmforeman-runtimes" },
     { name = "llmforeman-workspace" },
@@ -370,6 +372,7 @@ dev = [
 requires-dist = [
     { name = "llmforeman-cli", editable = "packages/cli" },
     { name = "llmforeman-core", editable = "packages/core" },
+    { name = "llmforeman-orchestration", editable = "packages/orchestration" },
     { name = "llmforeman-providers", editable = "packages/providers" },
     { name = "llmforeman-runtimes", editable = "packages/runtimes" },
     { name = "llmforeman-workspace", editable = "packages/workspace" },
@@ -397,6 +400,21 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "pydantic", specifier = ">=2.7" }]
+
+[[package]]
+name = "llmforeman-orchestration"
+version = "0.0.0"
+source = { editable = "packages/orchestration" }
+dependencies = [
+    { name = "llmforeman-core" },
+    { name = "llmforeman-workspace" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "llmforeman-core", editable = "packages/core" },
+    { name = "llmforeman-workspace", editable = "packages/workspace" },
+]
 
 [[package]]
 name = "llmforeman-providers"

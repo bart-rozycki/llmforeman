@@ -56,8 +56,13 @@ fails immediately with a configuration error before any API request is made.
 
 ## Where the boundaries live
 
-- `packages/core` — product/domain/orchestration runtime; must **not** depend on
-  providers, runtimes, the CLI, or the desktop app.
+- `packages/core` — product/domain/worker-protocol runtime; must **not** depend on
+  providers, runtimes, workspace, orchestration, the CLI, or the desktop app.
+- `packages/workspace` — local coding workspace capabilities (repository
+  search/read/write and command execution); depends only on `core`.
+- `packages/orchestration` — application/composition layer that composes core
+  worker semantics with workspace capabilities; depends only on `core` and
+  `workspace`. Composition code belongs here, not in `workspace`.
 - `packages/providers` — cloud LLM integrations.
 - `packages/runtimes` — local inference engines. Keep distinct from providers
   (`provider != runtime`).

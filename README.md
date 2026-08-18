@@ -20,6 +20,7 @@ boundaries:
 | `packages/providers` | providers | Cloud LLM integrations. Anthropic text/structured generation and Anthropic-backed Foreman planning implemented; OpenAI, Gemini, … planned. |
 | `packages/runtimes`  | runtimes  | Local inference engines. Ollama runtime implemented; MLX, llama.cpp, … planned.                       |
 | `packages/workspace` | workspace | Local coding workspace and repository-context infrastructure (Git repository-context loader).         |
+| `packages/orchestration` | orchestration | Application/composition layer that composes core worker semantics with workspace capabilities. Depends only on `core` and `workspace`. |
 | `packages/cli`       | CLI       | Thin command-line entry point over the Python runtime. Currently a no-op scaffold with no real commands. |
 | `apps/desktop`       | desktop   | Tauri 2 + React + TypeScript UI shell (narrow native bridge only). No product workflows yet.          |
 
@@ -36,7 +37,7 @@ provider and a local inference engine are distinct integration boundaries.
 
 ## Python: bootstrap & validation
 
-The repository root is a `uv` workspace containing the five Python packages,
+The repository root is a `uv` workspace containing the six Python packages,
 each using a `src/` layout and installed as an editable workspace member.
 
 ```sh

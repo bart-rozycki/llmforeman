@@ -25,7 +25,9 @@ Prefer the smallest coherent change that fully satisfies the task.
 
 The main repository boundaries are intentional:
 
-* `packages/core` — provider-independent domain, orchestration, execution, and application logic;
+* `packages/core` — provider-independent domain, worker-protocol, and application-logic semantics;
+* `packages/workspace` — local coding workspace capabilities (repository search/read/write and command execution);
+* `packages/orchestration` — application/composition layer that composes core worker semantics with workspace capabilities;
 * `packages/providers` — cloud LLM provider integrations;
 * `packages/runtimes` — local inference runtime integrations;
 * `packages/cli` — thin CLI interface over the Python runtime;
@@ -33,7 +35,8 @@ The main repository boundaries are intentional:
 
 Preserve these invariants:
 
-* `core` must not depend on Anthropic, OpenAI, Gemini, Ollama, MLX, llama.cpp, Tauri, or React;
+* `core` must not depend on Anthropic, OpenAI, Gemini, Ollama, MLX, llama.cpp, Tauri, or React, and must not depend on `workspace` or `orchestration`;
+* `workspace` depends only on `core` and must not host product orchestration semantics; `orchestration` depends only on `core` and `workspace` (never on `providers`, `runtimes`, `cli`, or `desktop`), and code that composes worker actions with workspace capabilities belongs in `orchestration`, not `workspace`;
 * cloud provider integrations and local inference runtimes are different concepts: `provider != runtime`;
 * CLI must not become a second backend;
 * desktop UI must not duplicate orchestration or domain logic;
