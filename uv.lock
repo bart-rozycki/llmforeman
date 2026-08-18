@@ -407,12 +407,14 @@ version = "0.0.0"
 source = { editable = "packages/orchestration" }
 dependencies = [
     { name = "llmforeman-core" },
+    { name = "llmforeman-runtimes" },
     { name = "llmforeman-workspace" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "llmforeman-core", editable = "packages/core" },
+    { name = "llmforeman-runtimes", editable = "packages/runtimes" },
     { name = "llmforeman-workspace", editable = "packages/workspace" },
 ]
 

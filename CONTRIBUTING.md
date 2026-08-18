@@ -61,8 +61,10 @@ fails immediately with a configuration error before any API request is made.
 - `packages/workspace` — local coding workspace capabilities (repository
   search/read/write and command execution); depends only on `core`.
 - `packages/orchestration` — application/composition layer that composes core
-  worker semantics with workspace capabilities; depends only on `core` and
-  `workspace`. Composition code belongs here, not in `workspace`.
+  worker semantics with workspace capabilities (and, for the local coding-agent
+  loop, a local inference `runtime`); depends only on `core`, `workspace`, and
+  `runtimes`. It must not depend on `providers`, the CLI, or the desktop app.
+  Composition code belongs here, not in `workspace`.
 - `packages/providers` — cloud LLM integrations.
 - `packages/runtimes` — local inference engines. Keep distinct from providers
   (`provider != runtime`).

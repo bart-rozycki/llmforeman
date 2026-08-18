@@ -4,7 +4,7 @@ version = "0.0.0"
 description = "LLMForeman application/composition layer (composes core worker semantics with workspace capabilities)."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = ["llmforeman-core", "llmforeman-workspace"]
+dependencies = ["llmforeman-core", "llmforeman-runtimes", "llmforeman-workspace"]
 
 [build-system]
 requires = ["hatchling"]
