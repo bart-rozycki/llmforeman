@@ -54,6 +54,30 @@ uv run pytest tests/integration/test_anthropic_foreman_live.py -s
 If you enable live tests but `ANTHROPIC_API_KEY` is missing or blank, the test
 fails immediately with a configuration error before any API request is made.
 
+## Live local worker smoke test (opt-in, local model)
+
+`tests/integration/test_local_coding_worker_live.py` drives the real
+`OllamaRuntime` → `LocalCodingWorker` → `WorkspaceActionExecutor` loop against a
+tiny disposable Git repository, using a real local model served by Ollama.
+
+- It runs a **real local model** (no cloud/paid API) and needs `git`, ripgrep
+  (`rg`), a running Ollama server, and the selected/default model installed.
+- It is **disabled by default**: ordinary `uv run pytest` skips it and never
+  contacts Ollama. It runs only with `LLMFOREMAN_RUN_LIVE_OLLAMA_TESTS=1`; once
+  opted in, missing prerequisites (or a missing model) **fail** rather than
+  skip. It never auto-starts Ollama and never pulls a model.
+- Model-requested `run` commands go to a non-executing test-local runner, so no
+  model-directed host command runs; writes still use the real secure
+  `GitRepositoryFileWriter`, and generated code is only parsed (never executed).
+
+To run it manually (optionally overriding the model with
+`LLMFOREMAN_OLLAMA_MODEL`):
+
+```sh
+LLMFOREMAN_RUN_LIVE_OLLAMA_TESTS=1 \
+uv run pytest tests/integration/test_local_coding_worker_live.py -s
+```
+
 ## Where the boundaries live
 
 - `packages/core` — product/domain/worker-protocol runtime; must **not** depend on
